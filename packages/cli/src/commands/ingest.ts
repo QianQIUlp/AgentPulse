@@ -1,5 +1,8 @@
 import { ingestClaudeHookJson } from "@agentpulse/adapter-claude-code";
-import { ingestCodexNotifyJson } from "@agentpulse/adapter-codex";
+import {
+  ingestCodexHookJson,
+  ingestCodexNotifyJson,
+} from "@agentpulse/adapter-codex";
 
 import type { AgentPulseClient } from "../daemon-client.js";
 import type { CommandIo, StdinReader } from "./types.js";
@@ -30,7 +33,10 @@ function warnAdapterResult(
 
 async function deliver(
   json: string,
-  adapter: typeof ingestClaudeHookJson | typeof ingestCodexNotifyJson,
+  adapter:
+    | typeof ingestClaudeHookJson
+    | typeof ingestCodexNotifyJson
+    | typeof ingestCodexHookJson,
   client: AgentPulseClient,
   io: CommandIo,
 ): Promise<number> {
@@ -86,9 +92,21 @@ async function ingest(
     return deliver(json, ingestCodexNotifyJson, client, io);
   }
 
+  if (platform === "codex-hook") {
+    if (platformArgs.length > 0) {
+      warn(
+        io,
+        "Codex hook ingest accepts JSON on stdin only. No event was recorded. Regenerate the hook with `agentpulse setup codex-hooks --print`.",
+      );
+      return 0;
+    }
+
+    return deliver(await readStdin(), ingestCodexHookJson, client, io);
+  }
+
   warn(
     io,
-    "unsupported platform. No event was recorded. Use `claude-code` or `codex`, then run `agentpulse doctor`.",
+    "unsupported platform. No event was recorded. Use `claude-code`, `codex`, or `codex-hook`, then run `agentpulse doctor`.",
   );
   return 0;
 }

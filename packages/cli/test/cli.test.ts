@@ -13,7 +13,10 @@ import type { Notifier } from "@agentpulse/notifier";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { DaemonClient, type AgentPulseClient } from "../src/daemon-client.js";
-import { executeDaemonCommand } from "../src/commands/daemon.js";
+import {
+  executeDaemonCommand,
+  resolveDaemonCommandOptions,
+} from "../src/commands/daemon.js";
 import { executeEmitCommand } from "../src/commands/emit.js";
 import { executeRunCommand } from "../src/commands/run.js";
 import { executeStatusCommand } from "../src/commands/status.js";
@@ -196,5 +199,33 @@ describe("CLI commands", () => {
         capture.io,
       ),
     ).rejects.toThrow("127.0.0.1");
+  });
+
+  it("defaults dashboard startup to IPv4 loopback without host overrides", () => {
+    expect(
+      resolveDaemonCommandOptions(["--dashboard", "--notifier", "none"], {}),
+    ).toMatchObject({
+      dashboard: true,
+      config: { host: "127.0.0.1", notifier: "none" },
+    });
+  });
+
+  it("allows both explicit loopback dashboard hosts", () => {
+    expect(
+      resolveDaemonCommandOptions(["--dashboard", "--host", "127.0.0.1"], {})
+        .config.host,
+    ).toBe("127.0.0.1");
+    expect(
+      resolveDaemonCommandOptions(["--dashboard", "--host", "::1"], {}).config
+        .host,
+    ).toBe("::1");
+  });
+
+  it("rejects an unsafe dashboard host from the environment", () => {
+    expect(() =>
+      resolveDaemonCommandOptions(["--dashboard"], {
+        AGENTPULSE_HOST: "0.0.0.0",
+      }),
+    ).toThrow("127.0.0.1");
   });
 });

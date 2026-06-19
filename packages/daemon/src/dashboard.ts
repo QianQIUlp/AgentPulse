@@ -26,6 +26,7 @@ export interface DashboardOptions {
   setup: {
     claudeCode: string;
     codex: string;
+    codexHooks: string;
   };
   doctor(): Promise<DashboardDoctorReport>;
 }
@@ -56,6 +57,7 @@ export interface DashboardApiResponse {
   setup: {
     claudeCode: string;
     codex: string;
+    codexHooks: string;
   };
   doctor: DashboardDoctorReport;
 }
@@ -118,8 +120,12 @@ const DASHBOARD_HTML = `<!doctype html>
             <pre id="setup-claude"></pre>
           </article>
           <article>
-            <h3>Codex</h3>
+            <h3>Codex notify</h3>
             <pre id="setup-codex"></pre>
+          </article>
+          <article>
+            <h3>Codex hooks</h3>
+            <pre id="setup-codex-hooks"></pre>
           </article>
         </div>
       </section>
@@ -407,6 +413,7 @@ function render(data) {
   setText("session-count", String(data.sessions.length));
   setText("setup-claude", data.setup.claudeCode);
   setText("setup-codex", data.setup.codex);
+  setText("setup-codex-hooks", data.setup.codexHooks);
   renderSessions(data.sessions);
   renderDoctor(data.doctor);
 }

@@ -13,7 +13,7 @@ import {
 } from "@agentpulse/notifier";
 
 import { DaemonClient } from "../daemon-client.js";
-import { CLAUDE_CODE_SETUP_SNIPPET, CODEX_SETUP_SNIPPET } from "./setup.js";
+import { createSetupSnippets } from "./setup.js";
 import type { CommandIo } from "./types.js";
 
 export type DoctorCheckStatus = "ok" | "warning" | "error" | "skipped";
@@ -39,6 +39,7 @@ export interface DoctorRuntime {
   osNotifier(): Promise<OsNotifierProbeResult>;
   claudeSnippet(): string;
   codexSnippet(): string;
+  codexHooksSnippet(): string;
 }
 
 export interface DoctorRuntimeOptions {
@@ -48,6 +49,7 @@ export interface DoctorRuntimeOptions {
 export function createDoctorRuntime(
   options: DoctorRuntimeOptions = {},
 ): DoctorRuntime {
+  const setup = createSetupSnippets();
   return {
     standalone: isSea,
     nodeVersion: () => process.versions.node,
@@ -83,8 +85,9 @@ export function createDoctorRuntime(
       }
     },
     osNotifier: probeOsNotifier,
-    claudeSnippet: () => CLAUDE_CODE_SETUP_SNIPPET,
-    codexSnippet: () => CODEX_SETUP_SNIPPET,
+    claudeSnippet: () => setup.claudeCode,
+    codexSnippet: () => setup.codex,
+    codexHooksSnippet: () => setup.codexHooks,
   };
 }
 
@@ -153,7 +156,7 @@ function setupChecks(runtime: DoctorRuntime): DoctorCheck[] {
 
   const codexSnippet = runtime.codexSnippet();
   checks.push(
-    codexSnippet === 'notify = ["agentpulse", "ingest", "codex"]'
+    /^notify = \[.+, "ingest", "codex"\]$/u.test(codexSnippet)
       ? {
           id: "setup-codex",
           status: "ok",
@@ -166,6 +169,33 @@ function setupChecks(runtime: DoctorRuntime): DoctorCheck[] {
           action: "Rebuild AgentPulse and rerun `agentpulse doctor`.",
         },
   );
+
+  try {
+    const parsed = JSON.parse(runtime.codexHooksSnippet()) as {
+      hooks?: { Stop?: unknown };
+    };
+    checks.push(
+      parsed.hooks?.Stop
+        ? {
+            id: "setup-codex-hooks",
+            status: "ok",
+            message: "Codex hooks setup snippet can be generated.",
+          }
+        : {
+            id: "setup-codex-hooks",
+            status: "error",
+            message: "Codex hooks setup snippet is missing its Stop hook.",
+            action: "Rebuild AgentPulse and rerun `agentpulse doctor`.",
+          },
+    );
+  } catch {
+    checks.push({
+      id: "setup-codex-hooks",
+      status: "error",
+      message: "Codex hooks setup snippet is not valid JSON.",
+      action: "Rebuild AgentPulse and rerun `agentpulse doctor`.",
+    });
+  }
 
   return checks;
 }

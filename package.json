@@ -1,6 +1,6 @@
 {
   "name": "agentpulse",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.11.0",
@@ -14,6 +14,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "smoke:standalone": "bash scripts/smoke-standalone.sh",
+    "smoke:standalone:windows": "pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-standalone.ps1",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -b --pretty false"
   },

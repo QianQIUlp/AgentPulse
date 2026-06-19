@@ -7,20 +7,37 @@ commands, and an optional browser dashboard.
 
 ## Quick Start
 
-The recommended user installation is the standalone Linux x64 release binary.
-It does not require Node.js, npm, or pnpm.
+The recommended user installation is a standalone Linux x64 or Windows x64
+release binary. It does not require Node.js, npm, or pnpm.
 
-1. Download `agentpulse-v0.2.2-linux-x64.tar.gz` and its `.sha256` file from
-   [GitHub Releases](https://github.com/QianQIUlp/AgentPulse/releases).
-2. Verify and extract the archive:
+1. Download the archive and matching `.sha256` file from
+   [GitHub Releases](https://github.com/QianQIUlp/AgentPulse/releases):
+
+   - Linux: `agentpulse-v0.2.3-linux-x64.tar.gz`
+   - Windows: `agentpulse-v0.2.3-windows-x64.zip`
+
+2. Verify and extract it.
+
+   Linux:
 
    ```bash
-   sha256sum --check agentpulse-v0.2.2-linux-x64.tar.gz.sha256
-   tar -xzf agentpulse-v0.2.2-linux-x64.tar.gz
-   cd agentpulse-v0.2.2-linux-x64
+   sha256sum --check agentpulse-v0.2.3-linux-x64.tar.gz.sha256
+   tar -xzf agentpulse-v0.2.3-linux-x64.tar.gz
+   cd agentpulse-v0.2.3-linux-x64
    ```
 
-3. Start the daemon and dashboard:
+   Windows PowerShell:
+
+   ```powershell
+   $expected = (Get-Content .\agentpulse-v0.2.3-windows-x64.zip.sha256).Split()[0]
+   $actual = (Get-FileHash .\agentpulse-v0.2.3-windows-x64.zip -Algorithm SHA256).Hash
+   if ($actual.ToLower() -ne $expected.ToLower()) { throw "Checksum mismatch" }
+   Expand-Archive .\agentpulse-v0.2.3-windows-x64.zip -DestinationPath .\agentpulse-v0.2.3-windows-x64
+   Set-Location .\agentpulse-v0.2.3-windows-x64
+   ```
+
+3. Start the daemon and dashboard with `./agentpulse daemon --dashboard` on
+   Linux or `.\agentpulse.exe daemon --dashboard` on Windows.
 
    ```bash
    ./agentpulse daemon --dashboard
@@ -36,11 +53,11 @@ doctor output. See [install without Node](docs/install-without-node.md) and the
 
 ### Standalone platform status
 
-| Platform  | v0.2.2 status                                               |
-| --------- | ----------------------------------------------------------- |
-| Linux x64 | Supported and verified by CI standalone smoke tests         |
-| Windows   | Planned / unverified; no supported v0.2.2 binary is claimed |
-| macOS     | Planned / unverified; no supported v0.2.2 binary is claimed |
+| Platform    | v0.2.3 status                                         |
+| ----------- | ----------------------------------------------------- |
+| Linux x64   | Supported and verified by CI standalone smoke tests   |
+| Windows x64 | Newly verified in v0.2.3 by CI standalone smoke tests |
+| macOS       | Planned / unverified; no supported binary is claimed  |
 
 Commands below use `agentpulse` on `PATH`. When running directly from the
 extracted archive, replace it with `./agentpulse`.
@@ -72,11 +89,21 @@ Print a Codex user-config snippet:
 agentpulse setup codex --print
 ```
 
+Print a Codex lifecycle hooks snippet:
+
+```bash
+agentpulse setup codex-hooks --print
+```
+
 These commands only print mergeable snippets. They never read or modify user
-configuration. Follow the platform-specific merge instructions:
+configuration. By default they include the absolute current standalone binary
+path, or the absolute Node executable plus CLI entry path for source mode. Use
+`--binary agentpulse` only to explicitly select PATH mode. Follow the
+platform-specific merge instructions:
 
 - [Claude Code setup](docs/setup-claude-code.md)
-- [Codex setup](docs/setup-codex.md)
+- [Codex notify setup](docs/setup-codex.md)
+- [Codex hooks setup](docs/setup-codex-hooks.md)
 
 The ingest commands are intended to be called by those integrations. Malformed
 input, unsupported events, and daemon connection failures warn safely without
@@ -178,7 +205,7 @@ node packages/cli/dist/index.js
 ## Architecture and Safety
 
 ```text
-Claude hook / Codex notify / wrapper / manual emit
+Claude hook / Codex notify or hooks / wrapper / manual emit
                         |
                         v
                      adapter
@@ -209,16 +236,19 @@ See [architecture](docs/architecture.md),
 ## Integration Levels
 
 - **Precise:** Claude Code uses documented lifecycle hooks.
-- **Narrow official:** Codex uses the documented external `notify` command and
-  supports only `agent-turn-complete`.
+- **Precise lifecycle:** Codex hooks map documented session, prompt, tool,
+  permission, and stop events after the user reviews and trusts the commands.
+- **Narrow official notify:** Codex `notify` remains available for
+  `agent-turn-complete`.
 - **Best-effort:** the generic CLI wrapper observes only the command it starts.
 - **Manual:** callers explicitly submit normalized events.
 
-AgentPulse does not claim Codex running, input-waiting, or permission states.
+Codex hooks are observation-only: AgentPulse never returns permission decisions,
+context, updated tool input, or turn-control output.
 
-## v0.2.2 Scope Boundaries
+## v0.2.3 Scope Boundaries
 
-v0.2.2 does not include OpenCode or Cursor adapters, a VS Code extension,
+v0.2.3 does not include OpenCode or Cursor adapters, a VS Code extension,
 Tauri, Electron, a desktop tray, persistence, SSE/WebSocket, session garbage
 collection, hardware output, automatic user-config mutation, OCR, screen
 scraping, window watching, or private API reverse engineering.

@@ -1,80 +1,101 @@
 # Install AgentPulse Without Node.js
 
-The recommended v0.2.2 user path is the standalone Linux x64 release archive.
-The installed `agentpulse` executable embeds its Node runtime; users do not need
+The recommended v0.2.3 user path is a standalone Linux x64 or Windows x64
+release archive. The executable embeds its Node runtime; users do not need
 Node.js, npm, pnpm, Corepack, or the source repository.
 
-## Supported Platform
+## Supported Platforms
 
-| Platform  | v0.2.2 release status                                       |
-| --------- | ----------------------------------------------------------- |
-| Linux x64 | Supported and verified in CI                                |
-| Windows   | Planned / unverified; no supported v0.2.2 binary is claimed |
-| macOS     | Planned / unverified; no supported v0.2.2 binary is claimed |
+| Platform    | v0.2.3 release status                                |
+| ----------- | ---------------------------------------------------- |
+| Linux x64   | Supported and verified in CI                         |
+| Windows x64 | Newly verified in v0.2.3 by native Windows CI smoke  |
+| macOS       | Planned / unverified; no supported binary is claimed |
 
-Do not treat the Windows or macOS source-build instructions as standalone
-binary support.
+## Linux x64
 
-## Download and Verify
+Download:
 
-Download these files from
-[GitHub Releases](https://github.com/QianQIUlp/AgentPulse/releases):
+- `agentpulse-v0.2.3-linux-x64.tar.gz`
+- `agentpulse-v0.2.3-linux-x64.tar.gz.sha256`
 
-- `agentpulse-v0.2.2-linux-x64.tar.gz`
-- `agentpulse-v0.2.2-linux-x64.tar.gz.sha256`
-
-Keep both files in the same directory, then run:
+Verify and extract:
 
 ```bash
-sha256sum --check agentpulse-v0.2.2-linux-x64.tar.gz.sha256
-tar -xzf agentpulse-v0.2.2-linux-x64.tar.gz
-cd agentpulse-v0.2.2-linux-x64
+sha256sum --check agentpulse-v0.2.3-linux-x64.tar.gz.sha256
+tar -xzf agentpulse-v0.2.3-linux-x64.tar.gz
+cd agentpulse-v0.2.3-linux-x64
 ./agentpulse --help
 ```
 
-The archive contains:
+The archive directory contains `agentpulse`, `LICENSE`, and `BUILD-INFO.txt`.
 
-- `agentpulse`: the standalone executable
-- `BUILD-INFO.txt`: exact build provenance
-- `LICENSE`: project license
+## Windows x64
 
-`BUILD-INFO.txt` records the AgentPulse version, the actual Node 22.x runtime
-selected by CI for that build, Linux/x64 target information, and the commit
-SHA. This per-artifact file is authoritative; the project does not hard-code a
-Node 22 patch version in release tooling.
+Download:
+
+- `agentpulse-v0.2.3-windows-x64.zip`
+- `agentpulse-v0.2.3-windows-x64.zip.sha256`
+
+Verify and extract in PowerShell:
+
+```powershell
+$expected = (Get-Content .\agentpulse-v0.2.3-windows-x64.zip.sha256).Split()[0]
+$actual = (Get-FileHash .\agentpulse-v0.2.3-windows-x64.zip -Algorithm SHA256).Hash
+if ($actual.ToLower() -ne $expected.ToLower()) { throw "Checksum mismatch" }
+
+Expand-Archive .\agentpulse-v0.2.3-windows-x64.zip -DestinationPath .\agentpulse-v0.2.3-windows-x64
+Set-Location .\agentpulse-v0.2.3-windows-x64
+.\agentpulse.exe --help
+```
+
+The ZIP root contains exactly `agentpulse.exe`, `LICENSE`, and
+`BUILD-INFO.txt`. The executable is not claimed to be code-signed.
+
+## Build provenance
+
+`BUILD-INFO.txt` records the AgentPulse version, exact Node 22.x runtime used by
+CI, target platform and architecture, and commit SHA. This per-artifact file is
+authoritative; release tooling does not hard-code a Node patch version.
 
 ## Optional PATH Installation
 
-To invoke `agentpulse` without a relative path:
+Linux example:
 
 ```bash
 mkdir -p "$HOME/.local/bin"
 install -m 0755 ./agentpulse "$HOME/.local/bin/agentpulse"
 ```
 
-Ensure `$HOME/.local/bin` is in `PATH`, then verify:
+On Windows, move `agentpulse.exe` to a user-controlled directory and add that
+directory to the user `PATH`.
 
-```bash
-agentpulse --help
-```
+Setup snippets default to the current executable's absolute path, so PATH
+installation is not required for hooks. To deliberately generate PATH-based
+snippets, pass `--binary agentpulse`.
 
 ## Start AgentPulse
 
-Start the daemon and browser dashboard:
+Linux:
 
 ```bash
-agentpulse daemon --dashboard
+./agentpulse daemon --dashboard
 ```
 
-Open the printed loopback URL. The default is:
+Windows:
 
-```text
-http://127.0.0.1:3768/dashboard
+```powershell
+.\agentpulse.exe daemon --dashboard
 ```
+
+Open the printed loopback URL, normally
+`http://127.0.0.1:3768/dashboard`. The dashboard always defaults to
+`127.0.0.1` and rejects non-loopback hosts.
 
 The default notifier is `console`. Use `--notifier none` for dashboard-only
-operation, or `--notifier os` when the Linux desktop session has a working
-`notify-send` installation.
+operation. OS notification delivery has separate desktop-runtime requirements;
+the Windows standalone smoke verifies the CLI and daemon, not visible Windows
+toast delivery.
 
 In another terminal, verify the running installation:
 
@@ -87,4 +108,4 @@ agentpulse status
 
 Building from source remains supported for development, but it requires Node.js
 22+, pnpm 10.11.0, and the repository toolchain. It is not the recommended
-ordinary-user installation path. See the README's Developer Setup section.
+ordinary-user installation path.

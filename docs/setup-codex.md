@@ -12,7 +12,7 @@ agentpulse setup codex --print
 Output:
 
 ```toml
-notify = ["agentpulse", "ingest", "codex"]
+notify = ["/absolute/path/to/agentpulse", "ingest", "codex"]
 ```
 
 This is a snippet for the user-level `~/.codex/config.toml`. Codex does not
@@ -22,6 +22,11 @@ modifies the config file.
 Codex stores configuration under `CODEX_HOME`, which defaults to `~/.codex`.
 On native Windows the default is `%USERPROFILE%\.codex`; a Codex CLI running
 inside WSL uses the Linux home unless `CODEX_HOME` is explicitly shared.
+
+The default command uses the current standalone executable's absolute path. In
+source mode it uses the absolute Node executable and absolute CLI entry path.
+Use `--binary agentpulse` only when Codex can reliably resolve AgentPulse from
+`PATH`; use another `--binary` value only for an absolute executable path.
 
 ## Merge it manually
 
@@ -33,7 +38,7 @@ If `notify` already exists:
 
 1. keep the existing command when it is still required;
 2. create or update a wrapper/dispatcher that invokes both the existing
-   notifier and `agentpulse ingest codex`;
+   notifier and the generated AgentPulse command;
 3. point the single Codex `notify` array at that wrapper.
 
 Only extend an existing argv array directly when that command is already a
@@ -92,6 +97,9 @@ a warning and use `agentpulse daemon --notifier console`.
 
 See [troubleshooting](troubleshooting.md#codex-notify-not-firing) when no event
 arrives.
+
+For lifecycle states before turn completion, separately configure the
+observation-only [Codex hooks integration](setup-codex-hooks.md).
 
 For the upstream configuration contract, see
 [Codex advanced configuration](https://developers.openai.com/codex/config-advanced#notifications).
