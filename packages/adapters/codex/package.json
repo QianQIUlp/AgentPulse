@@ -1,5 +1,5 @@
 {
-  "name": "@agentpulse/notifier",
+  "name": "@agentpulse/adapter-codex",
   "version": "0.2.0",
   "private": true,
   "type": "module",
@@ -17,9 +17,6 @@
   },
   "dependencies": {
     "@agentpulse/core": "workspace:^",
-    "node-notifier": "10.0.1"
-  },
-  "devDependencies": {
-    "@types/node-notifier": "^8.0.5"
+    "zod": "^3.25.56"
   }
 }
