@@ -10,6 +10,24 @@ function warn(io: CommandIo, message: string): void {
   io.warn(`${WARNING_PREFIX} ${message}`);
 }
 
+function warnAdapterResult(
+  io: CommandIo,
+  result: { kind: "ignored" | "invalid"; reason: string },
+): void {
+  if (result.kind === "invalid") {
+    warn(
+      io,
+      `${result.reason}. No event was recorded. Verify the platform setup and run \`agentpulse doctor\`.`,
+    );
+    return;
+  }
+
+  warn(
+    io,
+    `${result.reason}. No event was recorded because this payload is not supported. Check the supported events in the setup docs; the host workflow will continue.`,
+  );
+}
+
 async function deliver(
   json: string,
   adapter: typeof ingestClaudeHookJson | typeof ingestCodexNotifyJson,
@@ -19,14 +37,17 @@ async function deliver(
   const result = adapter(json);
 
   if (result.kind !== "event") {
-    warn(io, result.reason);
+    warnAdapterResult(io, result);
     return 0;
   }
 
   try {
     await client.emit(result.event);
   } catch {
-    warn(io, "unable to deliver event to the AgentPulse daemon");
+    warn(
+      io,
+      "unable to deliver the event, so it was not recorded. Start the daemon with `agentpulse daemon --notifier console`, then run `agentpulse doctor`. The host workflow will continue.",
+    );
   }
 
   return 0;
@@ -42,7 +63,10 @@ async function ingest(
 
   if (platform === "claude-code") {
     if (platformArgs.length > 0) {
-      warn(io, "Claude Code ingest accepts JSON on stdin only");
+      warn(
+        io,
+        "Claude Code ingest accepts JSON on stdin only. No event was recorded. Regenerate the hook with `agentpulse setup claude-code --print`.",
+      );
       return 0;
     }
 
@@ -51,7 +75,10 @@ async function ingest(
 
   if (platform === "codex") {
     if (platformArgs.length > 1) {
-      warn(io, "Codex ingest accepts one JSON argument or stdin");
+      warn(
+        io,
+        "Codex ingest accepts one JSON argument or stdin. No event was recorded. Regenerate the notify snippet with `agentpulse setup codex --print`.",
+      );
       return 0;
     }
 
@@ -59,7 +86,10 @@ async function ingest(
     return deliver(json, ingestCodexNotifyJson, client, io);
   }
 
-  warn(io, "unsupported platform");
+  warn(
+    io,
+    "unsupported platform. No event was recorded. Use `claude-code` or `codex`, then run `agentpulse doctor`.",
+  );
   return 0;
 }
 
@@ -72,7 +102,10 @@ export async function executeIngestCommand(
   try {
     return await ingest(args, client, io, readStdin);
   } catch {
-    warn(io, "unable to read platform input");
+    warn(
+      io,
+      "unable to read platform input, so no event was recorded. Verify the generated setup snippet and run `agentpulse doctor`; the host workflow will continue.",
+    );
     return 0;
   }
 }

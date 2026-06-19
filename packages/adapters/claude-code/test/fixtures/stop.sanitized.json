@@ -1,0 +1,13 @@
+{
+  "session_id": "fixture-claude-session",
+  "cwd": "/workspace/sanitized-project",
+  "hook_event_name": "Stop",
+  "last_assistant_message": "Sanitized completion",
+  "transcript_path": "/private/should-not-propagate.jsonl",
+  "tool_input": {
+    "command": "private-command-placeholder"
+  },
+  "rawEvent": {
+    "secret": "private-secret-placeholder"
+  }
+}

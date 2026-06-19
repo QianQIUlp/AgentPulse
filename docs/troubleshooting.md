@@ -1,0 +1,234 @@
+# Troubleshooting
+
+AgentPulse defaults to `127.0.0.1:3768`. Commands below assume that endpoint
+unless `AGENTPULSE_HOST` or `AGENTPULSE_PORT` is set.
+
+## `agentpulse` command not found
+
+**Symptom:** The shell reports `agentpulse: command not found`, “not recognized
+as the name of a cmdlet,” or an equivalent error.
+
+**Likely cause:** The CLI has not been built and linked, or the npm global bin
+directory is not on `PATH`.
+
+**Diagnostic command:**
+
+```bash
+command -v agentpulse
+node packages/cli/dist/index.js --help
+```
+
+In PowerShell use `Get-Command agentpulse`. Run `npm prefix -g` to inspect the
+global npm prefix.
+
+**Fix:** From the repository root run `pnpm build`, then `cd packages/cli &&
+npm link`. Open a new shell if its `PATH` changed.
+
+**Fallback:** Invoke the built CLI directly:
+
+```bash
+node packages/cli/dist/index.js doctor
+```
+
+## Daemon not running
+
+**Symptom:** `agentpulse doctor`, `status`, or `emit` says the daemon is
+unreachable.
+
+**Likely cause:** No daemon process is listening, or the previous process
+exited.
+
+**Diagnostic command:**
+
+```bash
+agentpulse doctor
+```
+
+**Fix:** Start the daemon in a dedicated terminal:
+
+```bash
+agentpulse daemon --notifier console
+```
+
+**Fallback:** Platform hook/notify commands return zero and allow Claude/Codex
+to continue, but events are not retained until the daemon is available.
+
+## Daemon unreachable
+
+**Symptom:** A daemon appears to be running, but clients cannot connect.
+
+**Likely cause:** Client and daemon use different host/port values, an invalid
+remote/container address is configured, or loopback refers to a different
+environment.
+
+**Diagnostic command:**
+
+```bash
+printf 'HOST=%s PORT=%s\n' "${AGENTPULSE_HOST:-127.0.0.1}" "${AGENTPULSE_PORT:-3768}"
+agentpulse doctor --json
+```
+
+In PowerShell inspect `$env:AGENTPULSE_HOST` and `$env:AGENTPULSE_PORT`.
+
+**Fix:** Start the daemon and clients with matching variables. Prefer
+`127.0.0.1` on one machine. In containers, bind intentionally and use the
+forwarded/reachable address; do not expose the unauthenticated daemon publicly.
+
+**Fallback:** Return both sides to the default loopback endpoint and run
+`agentpulse daemon --notifier console`.
+
+## Port conflict
+
+**Symptom:** Daemon startup says the selected address is already in use.
+
+**Likely cause:** Another AgentPulse daemon or unrelated process owns port
+`3768`.
+
+**Diagnostic command:**
+
+```bash
+lsof -nP -iTCP:3768 -sTCP:LISTEN
+```
+
+Linux alternatives include `ss -ltnp`; PowerShell can use
+`Get-NetTCPConnection -LocalPort 3768`.
+
+**Fix:** Stop the stale process, or choose another port for both daemon and
+clients:
+
+```bash
+AGENTPULSE_PORT=4768 agentpulse daemon --notifier console
+AGENTPULSE_PORT=4768 agentpulse doctor
+```
+
+In PowerShell assign `$env:AGENTPULSE_PORT = "4768"` first.
+
+**Fallback:** Use any free loopback port and keep the same environment variable
+in hook/notify process environments.
+
+## OS notification unavailable
+
+**Symptom:** `doctor --notifier os` warns, or daemon output says OS delivery
+failed, timed out, or could not load.
+
+**Likely cause:** `node-notifier` is unavailable, the environment has no desktop
+session, OS notification services/permissions are disabled, or a container/SSH
+session cannot access the host desktop.
+
+**Diagnostic command:**
+
+```bash
+agentpulse doctor --notifier os
+agentpulse emit --source custom --surface manual --status completed --message "OS notifier check"
+agentpulse status --json
+```
+
+The doctor probe does not send a notification; the emit command exercises
+delivery when an OS-notifier daemon is already running.
+
+**Fix:** Enable OS notifications for the current user/session and run the daemon
+on the desktop host. On Linux ensure a supported notification service is
+available; macOS and Windows may require notification permissions.
+
+**Fallback:**
+
+```bash
+agentpulse daemon --notifier console
+```
+
+An OS failure must not stop daemon startup or event ingestion.
+
+## Claude Code hook not firing
+
+**Symptom:** Completing a Claude Code turn creates no `claude-code` session.
+
+**Likely cause:** The snippet was merged into the wrong settings scope, the
+handler was replaced during a merge, hooks are disabled, the event/matcher does
+not apply, or `agentpulse` is absent from the hook process `PATH`.
+
+**Diagnostic command:**
+
+```bash
+echo '{"session_id":"claude-diagnostic","cwd":"/tmp","hook_event_name":"Stop"}' \
+  | agentpulse ingest claude-code
+agentpulse status --json
+```
+
+Also run `/hooks` inside Claude Code and inspect the event, source file,
+matcher, and full command.
+
+**Fix:** Merge the snippet into `~/.claude/settings.json`,
+`.claude/settings.json`, or `.claude/settings.local.json`. On Windows,
+`~/.claude` is `%USERPROFILE%\.claude`. Preserve existing event arrays and use
+an absolute CLI path if the hook environment has a restricted `PATH`.
+
+**Fallback:** Use the synthetic ingest command to verify AgentPulse separately,
+then keep the console notifier visible while correcting the hook.
+
+## Codex notify not firing
+
+**Symptom:** Completing a Codex CLI turn creates no `codex` session.
+
+**Likely cause:** `notify` was placed in project `.codex/config.toml`, an
+existing notifier was overwritten or retained instead, the argv array is
+invalid, or the command is not on `PATH`.
+
+**Diagnostic command:**
+
+```bash
+agentpulse ingest codex \
+  '{"type":"agent-turn-complete","thread-id":"codex-diagnostic","cwd":"/tmp"}'
+agentpulse status --json
+```
+
+Inspect `${CODEX_HOME:-$HOME/.codex}/config.toml`. On native Windows the default
+is `%USERPROFILE%\.codex\config.toml`; WSL normally has a separate Linux
+`~/.codex`.
+
+**Fix:** Put `notify = ["agentpulse", "ingest", "codex"]` at the user level.
+Codex supports one external notifier argv array. If another notifier is needed,
+point `notify` to a wrapper that dispatches to both commands.
+
+**Fallback:** Use synthetic ingest to isolate AgentPulse, or keep the existing
+notifier and call AgentPulse from its wrapper.
+
+See the official
+[Codex notification configuration](https://developers.openai.com/codex/config-advanced#notifications).
+
+## Setup snippet merge conflict
+
+**Symptom:** The generated fragment conflicts with existing `hooks` or `notify`
+configuration, or replacing the file removes unrelated settings.
+
+**Likely cause:** Setup output is a fragment, not a complete replacement file.
+Claude event arrays are mergeable; Codex `notify` is one command argv array.
+
+**Diagnostic command:**
+
+```bash
+agentpulse setup claude-code --print
+agentpulse setup codex --print
+```
+
+Compare the printed stdout with the existing file. Validate Claude JSON with a
+JSON parser and Codex TOML with the Codex CLI before relying on it.
+
+**Fix:** For Claude, preserve the single `hooks` object and append AgentPulse
+matcher groups to existing event arrays. For Codex, preserve an existing
+notifier or replace it only with a deliberate wrapper/dispatcher.
+
+**Fallback:** Do not merge until the conflict is understood. Synthetic ingest
+commands can verify AgentPulse without changing platform configuration.
+
+## Platform notes
+
+- **macOS:** User files are below the normal home directory. OS notifications
+  may require permission for the terminal/runtime launching AgentPulse.
+- **Linux:** Desktop notifications require a graphical session and notification
+  service. SSH, containers, and headless hosts commonly require console
+  fallback.
+- **Windows:** `~/.claude` and `~/.codex` resolve below `%USERPROFILE%` for
+  native tools. PowerShell environment syntax differs from POSIX shells.
+- **WSL:** Native Windows and WSL have separate home directories and desktop
+  access by default. Ensure the platform CLI, AgentPulse daemon, and config file
+  use the same environment or explicitly bridge them.

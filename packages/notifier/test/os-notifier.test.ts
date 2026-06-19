@@ -10,6 +10,7 @@ import {
   OS_NOTIFICATION_TITLE_LIMIT,
   OS_NOTIFIER_WARNINGS,
   OsNotifier,
+  probeOsNotifier,
 } from "../src/index.js";
 
 function completedEvent(message = "done") {
@@ -29,6 +30,24 @@ function sessionFor(message = "done") {
 }
 
 describe("OS notifier", () => {
+  it("probes module availability without sending a notification", async () => {
+    let sends = 0;
+    const available = await probeOsNotifier(async () => ({
+      notify: () => {
+        sends += 1;
+      },
+    }));
+    const missing = await probeOsNotifier(async () => {
+      throw new Error("module detail");
+    });
+    const unsupported = await probeOsNotifier(async () => ({ default: {} }));
+
+    expect(available).toEqual({ available: true });
+    expect(missing).toEqual({ available: false, reason: "import" });
+    expect(unsupported).toEqual({ available: false, reason: "shape" });
+    expect(sends).toBe(0);
+  });
+
   it("limits notification title and message length", () => {
     const { event, session } = sessionFor("message".repeat(100));
     const notification = formatOsNotification(event, session);
@@ -100,6 +119,7 @@ describe("OS notifier", () => {
     await expect(notifier.notify(event, session)).resolves.toBeUndefined();
     expect(warnings).toEqual([expected]);
     expect(warnings.join("\n")).not.toContain("module detail");
+    expect(warnings[0]).toContain("agentpulse daemon --notifier console");
   });
 
   it("contains synchronous runtime failures", async () => {

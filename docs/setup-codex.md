@@ -19,6 +19,10 @@ This is a snippet for the user-level `~/.codex/config.toml`. Codex does not
 honor `notify` from project-local configuration. AgentPulse never reads or
 modifies the config file.
 
+Codex stores configuration under `CODEX_HOME`, which defaults to `~/.codex`.
+On native Windows the default is `%USERPROFILE%\.codex`; a Codex CLI running
+inside WSL uses the Linux home unless `CODEX_HOME` is explicitly shared.
+
 ## Merge it manually
 
 Do not overwrite an existing `notify` value without reviewing it. The array is
@@ -43,7 +47,22 @@ input-waiting, or permission-waiting states.
 
 ## Verify
 
-With the AgentPulse daemon running:
+First run the read-only diagnostics. An unreachable-daemon error is expected
+until the daemon starts:
+
+```bash
+agentpulse doctor
+```
+
+Start the daemon in a separate terminal with visible console output:
+
+```bash
+agentpulse daemon --notifier console
+```
+
+### Synthetic ingest check
+
+This checks the AgentPulse ingest path without launching Codex:
 
 ```bash
 agentpulse ingest codex \
@@ -53,6 +72,26 @@ agentpulse status --json
 ```
 
 The resulting session should have source `codex` and status `completed`.
+
+### Real Codex notify check
+
+1. Confirm `notify` is in the user-level `config.toml`, not a project
+   `.codex/config.toml`.
+2. Start a new Codex CLI turn and let it complete.
+3. Confirm the daemon terminal prints a `codex completed` event.
+4. Run `agentpulse status --json` and confirm the session source is `codex`.
+
+Codex passes one JSON argument to the external command. AgentPulse currently
+maps only the documented `agent-turn-complete` notification. Successful notify
+ingest is intentionally quiet in the Codex terminal.
+
+To test OS notifications, restart the daemon with
+`agentpulse daemon --notifier os` and complete another turn. If desktop
+delivery is unavailable, confirm `agentpulse doctor --notifier os` reports only
+a warning and use `agentpulse daemon --notifier console`.
+
+See [troubleshooting](troubleshooting.md#codex-notify-not-firing) when no event
+arrives.
 
 For the upstream configuration contract, see
 [Codex advanced configuration](https://developers.openai.com/codex/config-advanced#notifications).

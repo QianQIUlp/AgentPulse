@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+
+import { normalizeAgentEvent } from "@agentpulse/core";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,6 +10,34 @@ import {
 } from "../src/index.js";
 
 describe("Codex notify adapter", () => {
+  it("normalizes a sanitized fixture without retaining prompts or raw payload fields", () => {
+    const fixture = readFileSync(
+      new URL("./fixtures/agent-turn-complete.sanitized.json", import.meta.url),
+      "utf8",
+    );
+    const result = ingestCodexNotifyJson(fixture);
+
+    expect(result.kind).toBe("event");
+    if (result.kind !== "event") {
+      throw new Error("Expected fixture to map");
+    }
+
+    const event = normalizeAgentEvent(result.event);
+    expect(event).toMatchObject({
+      source: "codex",
+      surface: "cli",
+      status: "completed",
+      sessionId: "fixture-codex-thread",
+      projectPath: "/workspace/sanitized-project",
+      title: "agent-turn-complete",
+      message: "Sanitized completion",
+    });
+    expect(JSON.stringify(event)).not.toContain(
+      "private-user-prompt-placeholder",
+    );
+    expect(JSON.stringify(event)).not.toContain("private-secret-placeholder");
+  });
+
   it("maps agent-turn-complete and its safe identity fields", () => {
     const result = mapCodexNotification({
       type: "agent-turn-complete",

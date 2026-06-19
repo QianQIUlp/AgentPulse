@@ -32,9 +32,30 @@ export async function executeDaemonCommand(
       warning: io.warn,
     }),
   });
-  const daemon = await startDaemon(config, service);
+  let daemon;
+  try {
+    daemon = await startDaemon(config, service);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "EADDRINUSE"
+    ) {
+      throw new Error(
+        `Cannot start AgentPulse: ${config.host}:${config.port} is already in use. Stop the process using that port, or choose another port with \`agentpulse daemon --port <port>\` and set AGENTPULSE_PORT to the same value for clients.`,
+      );
+    }
+    throw error;
+  }
 
-  io.write(`AgentPulse daemon listening at ${daemon.url}`);
+  io.write(
+    `AgentPulse daemon listening at ${daemon.url} (notifier: ${config.notifier})`,
+  );
+  if (config.notifier === "os") {
+    io.write(
+      "OS notification failures will not stop ingestion. Fallback: restart with `agentpulse daemon --notifier console`.",
+    );
+  }
 
   return new Promise<number>((resolve, reject) => {
     let closing = false;
