@@ -102,6 +102,7 @@ describe("daemon HTTP server", () => {
           setup: {
             claudeCode: '{"hooks":{"Stop":[]}}',
             codex: 'notify = ["agentpulse", "ingest", "codex"]',
+            codexHooks: '{"hooks":{"Stop":[]}}',
           },
           doctor: async () => ({
             ok: true,
@@ -144,7 +145,11 @@ describe("daemon HTTP server", () => {
       {
         dashboard: {
           notifier: "none",
-          setup: { claudeCode: "claude", codex: "codex" },
+          setup: {
+            claudeCode: "claude",
+            codex: "codex",
+            codexHooks: "codex-hooks",
+          },
           doctor: async () => ({ ok: true, checks: [] }),
         },
       },
@@ -186,7 +191,11 @@ describe("daemon HTTP server", () => {
         {
           dashboard: {
             notifier: "none",
-            setup: { claudeCode: "claude", codex: "codex" },
+            setup: {
+              claudeCode: "claude",
+              codex: "codex",
+              codexHooks: "codex-hooks",
+            },
             doctor: async () => ({ ok: true, checks: [] }),
           },
         },
@@ -196,6 +205,27 @@ describe("daemon HTTP server", () => {
 
   it("formats IPv6 loopback daemon URLs correctly", () => {
     expect(formatDaemonUrl("::1", 3768)).toBe("http://[::1]:3768");
+  });
+
+  it("starts a dashboard on IPv6 loopback", async () => {
+    instance = await startDaemon(
+      { host: "::1", port: 0 },
+      new AgentPulseService({ notifier: new SilentNotifier() }),
+      {
+        dashboard: {
+          notifier: "none",
+          setup: {
+            claudeCode: "claude",
+            codex: "codex",
+            codexHooks: "codex-hooks",
+          },
+          doctor: async () => ({ ok: true, checks: [] }),
+        },
+      },
+    );
+
+    const response = await fetch(`${instance.url}/dashboard`);
+    expect(response.status).toBe(200);
   });
 
   it("keeps ingest available when the OS notifier cannot load", async () => {

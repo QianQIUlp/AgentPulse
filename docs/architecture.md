@@ -101,6 +101,9 @@ The daemon listens on `127.0.0.1:3768` by default:
 `--notifier` flag takes precedence.
 
 Dashboard routes are registered only for `agentpulse daemon --dashboard`.
+Dashboard startup defaults to `127.0.0.1` and rejects every non-loopback host
+before opening a listener, including unsafe values inherited from
+`AGENTPULSE_HOST`.
 Dashboard mode requires `127.0.0.1` or `::1` even if a trusted developer would
 otherwise choose a broader daemon bind address.
 

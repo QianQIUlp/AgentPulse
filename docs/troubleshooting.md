@@ -160,7 +160,8 @@ matcher, and full command.
 **Fix:** Merge the snippet into `~/.claude/settings.json`,
 `.claude/settings.json`, or `.claude/settings.local.json`. On Windows,
 `~/.claude` is `%USERPROFILE%\.claude`. Preserve existing event arrays and use
-an absolute CLI path if the hook environment has a restricted `PATH`.
+the default generated absolute command if the hook environment has a restricted
+`PATH`. Regenerate with `--binary agentpulse` only for deliberate PATH mode.
 
 **Fallback:** Use the synthetic ingest command to verify AgentPulse separately,
 then keep the console notifier visible while correcting the hook.
@@ -185,15 +186,41 @@ Inspect `${CODEX_HOME:-$HOME/.codex}/config.toml`. On native Windows the default
 is `%USERPROFILE%\.codex\config.toml`; WSL normally has a separate Linux
 `~/.codex`.
 
-**Fix:** Put `notify = ["agentpulse", "ingest", "codex"]` at the user level.
-Codex supports one external notifier argv array. If another notifier is needed,
-point `notify` to a wrapper that dispatches to both commands.
+**Fix:** Put the generated `notify` array at the user level. It defaults to an
+absolute executable command. Codex supports one external notifier argv array.
+If another notifier is needed, point `notify` to a wrapper that dispatches to
+both commands.
 
 **Fallback:** Use synthetic ingest to isolate AgentPulse, or keep the existing
 notifier and call AgentPulse from its wrapper.
 
 See the official
 [Codex notification configuration](https://developers.openai.com/codex/config-advanced#notifications).
+
+## Codex hook not firing
+
+**Symptom:** Codex lifecycle activity does not create or update a `codex`
+session, while notify completion may still work.
+
+**Likely cause:** The hooks fragment was not merged, the project config layer is
+untrusted, the exact command is awaiting hook review, hooks are disabled, or
+the generated executable path moved.
+
+**Diagnostic command:**
+
+```bash
+printf '%s' '{"session_id":"codex-hook-diagnostic","cwd":"/tmp","hook_event_name":"PermissionRequest"}' \
+  | agentpulse ingest codex-hook
+agentpulse status --json
+```
+
+**Fix:** Regenerate `agentpulse setup codex-hooks --print`, merge it without
+replacing existing groups, then use Codex `/hooks` to inspect and trust the exact
+command. Do not bypass hook trust. If the binary moved, regenerate the snippet
+so its absolute path is current.
+
+**Fallback:** Keep the documented Codex notify integration for completion events
+while resolving hook setup.
 
 ## Setup snippet merge conflict
 
@@ -208,6 +235,7 @@ Claude event arrays are mergeable; Codex `notify` is one command argv array.
 ```bash
 agentpulse setup claude-code --print
 agentpulse setup codex --print
+agentpulse setup codex-hooks --print
 ```
 
 Compare the printed stdout with the existing file. Validate Claude JSON with a

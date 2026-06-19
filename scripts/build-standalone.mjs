@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmod,
   copyFile,
@@ -24,9 +24,9 @@ const platform = process.platform;
 const architecture = process.arch;
 const nodeMajor = Number(process.versions.node.split(".")[0]);
 
-if (platform !== "linux" || architecture !== "x64") {
+if (!["linux", "win32"].includes(platform) || architecture !== "x64") {
   throw new Error(
-    `Standalone release builds are verified only for linux/x64, not ${platform}/${architecture}.`,
+    `Standalone release builds are verified only for linux/x64 and win32/x64, not ${platform}/${architecture}.`,
   );
 }
 
@@ -36,15 +36,21 @@ if (nodeMajor !== 22) {
   );
 }
 
-const artifactName = `agentpulse-v${version}-linux-x64`;
+const targetPlatform = platform === "win32" ? "windows" : "linux";
+const artifactName = `agentpulse-v${version}-${targetPlatform}-x64`;
 const releaseDirectory = join(root, "release");
 const stagingDirectory = join(releaseDirectory, artifactName);
 const workDirectory = join(releaseDirectory, ".work");
 const bundlePath = join(workDirectory, "agentpulse.cjs");
 const seaConfigPath = join(workDirectory, "sea-config.json");
 const seaBlobPath = join(workDirectory, "agentpulse.blob");
-const binaryPath = join(stagingDirectory, "agentpulse");
-const archivePath = join(releaseDirectory, `${artifactName}.tar.gz`);
+const binaryName = platform === "win32" ? "agentpulse.exe" : "agentpulse";
+const binaryPath = join(stagingDirectory, binaryName);
+const archiveExtension = platform === "win32" ? ".zip" : ".tar.gz";
+const archivePath = join(
+  releaseDirectory,
+  `${artifactName}${archiveExtension}`,
+);
 const checksumPath = `${archivePath}.sha256`;
 const commit =
   process.env.GITHUB_SHA ??
@@ -94,10 +100,35 @@ execFileSync(process.execPath, ["--experimental-sea-config", seaConfigPath], {
 });
 
 await copyFile(process.execPath, binaryPath);
+
+if (platform === "win32") {
+  const located = spawnSync("where.exe", ["signtool.exe"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (located.status === 0) {
+    const removed = spawnSync("signtool.exe", ["remove", "/s", binaryPath], {
+      encoding: "utf8",
+      stdio: "inherit",
+    });
+    if (removed.status !== 0) {
+      console.warn(
+        "signtool could not remove the Node executable signature; continuing with the expected postject signature warning.",
+      );
+    }
+  } else {
+    console.warn(
+      "signtool is unavailable; continuing with the expected postject signature warning.",
+    );
+  }
+}
+
 await inject(binaryPath, "NODE_SEA_BLOB", await readFile(seaBlobPath), {
   sentinelFuse: "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2",
 });
-await chmod(binaryPath, 0o755);
+if (platform !== "win32") {
+  await chmod(binaryPath, 0o755);
+}
 
 await copyFile(join(root, "LICENSE"), join(stagingDirectory, "LICENSE"));
 await writeFile(
@@ -105,21 +136,43 @@ await writeFile(
   [
     `AgentPulse version: ${version}`,
     `Node version: ${process.version}`,
-    `Platform: ${platform}`,
+    `Platform: ${targetPlatform}`,
     `Architecture: ${architecture}`,
     `Commit: ${commit}`,
     "",
   ].join("\n"),
 );
 
-execFileSync(
-  "tar",
-  ["-czf", archivePath, "-C", releaseDirectory, artifactName],
-  {
-    cwd: root,
-    stdio: "inherit",
-  },
-);
+if (platform === "win32") {
+  execFileSync(
+    "powershell.exe",
+    [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      "Compress-Archive -Path (Join-Path $env:AGENTPULSE_STAGING '*') -DestinationPath $env:AGENTPULSE_ARCHIVE -CompressionLevel Optimal -Force",
+    ],
+    {
+      cwd: root,
+      env: {
+        ...process.env,
+        AGENTPULSE_ARCHIVE: archivePath,
+        AGENTPULSE_STAGING: stagingDirectory,
+      },
+      stdio: "inherit",
+    },
+  );
+} else {
+  execFileSync(
+    "tar",
+    ["-czf", archivePath, "-C", releaseDirectory, artifactName],
+    {
+      cwd: root,
+      stdio: "inherit",
+    },
+  );
+}
 
 const checksum = createHash("sha256")
   .update(await readFile(archivePath))

@@ -8,7 +8,7 @@ import { executeSetupCommand } from "./commands/setup.js";
 import { executeStatusCommand } from "./commands/status.js";
 import { consoleIo, readStdin, type CommandIo } from "./commands/types.js";
 
-const USAGE = `AgentPulse v0.2.2
+const USAGE = `AgentPulse v0.2.3
 
 Usage:
   agentpulse daemon [--host HOST] [--port PORT] [--notifier KIND] [--dashboard]
@@ -16,8 +16,10 @@ Usage:
   agentpulse emit --source SOURCE --surface SURFACE --status STATUS [options]
   agentpulse ingest claude-code
   agentpulse ingest codex [json]
-  agentpulse setup claude-code --print
-  agentpulse setup codex --print
+  agentpulse ingest codex-hook
+  agentpulse setup claude-code --print [--binary PATH]
+  agentpulse setup codex --print [--binary PATH]
+  agentpulse setup codex-hooks --print [--binary PATH]
   agentpulse status [--json]
   agentpulse run [--source generic-cli] [--cwd PATH] -- <command> [args...]
 `;

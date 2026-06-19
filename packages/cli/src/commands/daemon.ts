@@ -3,19 +3,26 @@ import { parseArgs } from "node:util";
 import {
   AgentPulseService,
   formatDaemonUrl,
+  isLoopbackHost,
   resolveDaemonConfig,
   startDaemon,
+  type DaemonConfig,
 } from "@agentpulse/daemon";
 import { createNotifier } from "@agentpulse/notifier";
 
 import { createDoctorRuntime, runDoctor } from "./doctor.js";
-import { CLAUDE_CODE_SETUP_SNIPPET, CODEX_SETUP_SNIPPET } from "./setup.js";
+import { createSetupSnippets } from "./setup.js";
 import type { CommandIo } from "./types.js";
 
-export async function executeDaemonCommand(
+export interface DaemonCommandOptions {
+  config: DaemonConfig;
+  dashboard: boolean;
+}
+
+export function resolveDaemonCommandOptions(
   args: readonly string[],
-  io: CommandIo,
-): Promise<number> {
+  env: NodeJS.ProcessEnv = process.env,
+): DaemonCommandOptions {
   const { values } = parseArgs({
     args: [...args],
     options: {
@@ -26,24 +33,40 @@ export async function executeDaemonCommand(
     },
     strict: true,
   });
-  const config = resolveDaemonConfig({
-    ...(values.host ? { host: values.host } : {}),
-    ...(values.notifier ? { notifier: values.notifier } : {}),
-    ...(values.port ? { port: Number(values.port) } : {}),
-  });
+  const config = resolveDaemonConfig(
+    {
+      ...(values.host !== undefined ? { host: values.host } : {}),
+      ...(values.notifier !== undefined ? { notifier: values.notifier } : {}),
+      ...(values.port !== undefined ? { port: Number(values.port) } : {}),
+    },
+    env,
+  );
+
+  if (values.dashboard && !isLoopbackHost(config.host)) {
+    throw new Error(
+      "The AgentPulse dashboard requires --host 127.0.0.1 or --host ::1.",
+    );
+  }
+
+  return { config, dashboard: values.dashboard };
+}
+
+export async function executeDaemonCommand(
+  args: readonly string[],
+  io: CommandIo,
+): Promise<number> {
+  const options = resolveDaemonCommandOptions(args);
+  const { config } = options;
   const service = new AgentPulseService({
     notifier: createNotifier(config.notifier, {
       warning: io.warn,
     }),
   });
   let doctorReport: ReturnType<typeof runDoctor> | undefined;
-  const dashboard = values.dashboard
+  const dashboard = options.dashboard
     ? {
         notifier: config.notifier,
-        setup: {
-          claudeCode: CLAUDE_CODE_SETUP_SNIPPET,
-          codex: CODEX_SETUP_SNIPPET,
-        },
+        setup: createSetupSnippets(),
         doctor: () => {
           doctorReport ??= runDoctor(
             config.notifier,
@@ -92,14 +115,24 @@ export async function executeDaemonCommand(
       }
       closing = true;
       void daemon.close().then(() => {
-        process.off("SIGINT", shutdown);
-        process.off("SIGTERM", shutdown);
+        removeSignalHandlers();
         io.write("AgentPulse daemon stopped");
         resolve(0);
       }, reject);
     };
 
-    process.on("SIGINT", shutdown);
-    process.on("SIGTERM", shutdown);
+    const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
+    if (process.platform === "win32") {
+      signals.push("SIGBREAK");
+    }
+    for (const signal of signals) {
+      process.on(signal, shutdown);
+    }
+
+    const removeSignalHandlers = () => {
+      for (const signal of signals) {
+        process.off(signal, shutdown);
+      }
+    };
   });
 }

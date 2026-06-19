@@ -25,7 +25,8 @@ function runtime(overrides: Partial<DoctorRuntime> = {}): DoctorRuntime {
     daemonReachable: async () => true,
     osNotifier: async () => ({ available: true }),
     claudeSnippet: () => '{"hooks":{"Stop":[]}}',
-    codexSnippet: () => 'notify = ["agentpulse", "ingest", "codex"]',
+    codexSnippet: () => 'notify = ["/opt/agentpulse", "ingest", "codex"]',
+    codexHooksSnippet: () => '{"hooks":{"Stop":[]}}',
     ...overrides,
   };
 }
@@ -114,6 +115,7 @@ describe("doctor command", () => {
         cliBuilt: async () => false,
         claudeSnippet: () => "{",
         codexSnippet: () => "invalid",
+        codexHooksSnippet: () => "{",
       }),
     );
 
@@ -121,6 +123,7 @@ describe("doctor command", () => {
     expect(capture.warnings.join("\n")).toContain("[error] cli-build");
     expect(capture.warnings.join("\n")).toContain("[error] setup-claude-code");
     expect(capture.warnings.join("\n")).toContain("[error] setup-codex");
+    expect(capture.warnings.join("\n")).toContain("[error] setup-codex-hooks");
   });
 
   it("skips source tooling checks for a standalone binary", async () => {

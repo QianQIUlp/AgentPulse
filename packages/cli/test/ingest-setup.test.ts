@@ -9,9 +9,11 @@ import { describe, expect, it } from "vitest";
 import type { AgentPulseClient } from "../src/daemon-client.js";
 import { executeIngestCommand } from "../src/commands/ingest.js";
 import {
-  CLAUDE_CODE_SETUP_SNIPPET,
-  CODEX_SETUP_SNIPPET,
+  createSetupSnippets,
   executeSetupCommand,
+  renderHookCommand,
+  resolveAgentPulseCommand,
+  type SetupRuntime,
 } from "../src/commands/setup.js";
 import type { CommandIo } from "../src/commands/types.js";
 
@@ -38,6 +40,16 @@ function captureClient() {
     sessions: async () => [],
   };
   return { client, events };
+}
+
+function setupRuntime(overrides: Partial<SetupRuntime> = {}): SetupRuntime {
+  return {
+    isSea: () => false,
+    execPath: "/usr/local/bin/node",
+    entryPath: "/workspace/AgentPulse/packages/cli/dist/index.js",
+    platform: "linux",
+    ...overrides,
+  };
 }
 
 describe("platform ingest commands", () => {
@@ -108,6 +120,42 @@ describe("platform ingest commands", () => {
     );
 
     expect(target.events[0]?.sessionId).toBe("codex-stdin");
+  });
+
+  it("reads a Codex hook from stdin and sends it silently", async () => {
+    const capture = captureIo();
+    const target = captureClient();
+
+    const code = await executeIngestCommand(
+      ["codex-hook"],
+      target.client,
+      capture.io,
+      async () =>
+        JSON.stringify({
+          session_id: "codex-hook-session",
+          cwd: "/tmp/demo",
+          hook_event_name: "PermissionRequest",
+          prompt: "secret prompt",
+          tool_input: { command: "secret command" },
+          tool_response: "secret response",
+          transcript_path: "/tmp/secret-transcript",
+        }),
+    );
+
+    expect(code).toBe(0);
+    expect(target.events).toEqual([
+      {
+        source: "codex",
+        surface: "cli",
+        status: "waiting_permission",
+        title: "PermissionRequest",
+        sessionId: "codex-hook-session",
+        projectPath: "/tmp/demo",
+      },
+    ]);
+    expect(JSON.stringify(target.events)).not.toContain("secret");
+    expect(capture.output).toEqual([]);
+    expect(capture.warnings).toEqual([]);
   });
 
   it("warns and returns zero for ignored or invalid input", async () => {
@@ -191,32 +239,178 @@ describe("platform ingest commands", () => {
     expect(capture.warnings[0]).toContain("agentpulse doctor");
     expect(capture.warnings.join("\n")).not.toContain("stdin detail");
   });
+
+  it("warns and returns zero for unsupported Codex hooks", async () => {
+    const capture = captureIo();
+    const target = captureClient();
+
+    const code = await executeIngestCommand(
+      ["codex-hook"],
+      target.client,
+      capture.io,
+      async () => JSON.stringify({ hook_event_name: "PreCompact" }),
+    );
+
+    expect(code).toBe(0);
+    expect(target.events).toEqual([]);
+    expect(capture.output).toEqual([]);
+    expect(capture.warnings).toHaveLength(1);
+    expect(capture.warnings[0]).toContain("Unsupported Codex hook event");
+  });
+
+  it("keeps malformed and undeliverable Codex hooks non-blocking", async () => {
+    const malformed = captureIo();
+    const target = captureClient();
+
+    expect(
+      await executeIngestCommand(
+        ["codex-hook"],
+        target.client,
+        malformed.io,
+        async () => "{",
+      ),
+    ).toBe(0);
+    expect(malformed.output).toEqual([]);
+    expect(malformed.warnings[0]).toContain("Invalid Codex hook JSON");
+
+    const unavailable = captureIo();
+    const client: AgentPulseClient = {
+      emit: async () => {
+        throw new Error("private connection detail");
+      },
+      sessions: async () => [],
+    };
+    expect(
+      await executeIngestCommand(
+        ["codex-hook"],
+        client,
+        unavailable.io,
+        async () =>
+          JSON.stringify({
+            session_id: "offline-hook",
+            hook_event_name: "Stop",
+          }),
+      ),
+    ).toBe(0);
+    expect(unavailable.output).toEqual([]);
+    expect(unavailable.warnings[0]).toContain("unable to deliver");
+    expect(unavailable.warnings.join("\n")).not.toContain(
+      "private connection detail",
+    );
+  });
 });
 
 describe("setup snippet commands", () => {
   it("prints the Claude Code snippet without SessionEnd", () => {
     const capture = captureIo();
+    const snippets = createSetupSnippets(undefined, setupRuntime());
 
-    expect(executeSetupCommand(["claude-code", "--print"], capture.io)).toBe(0);
-    expect(capture.output).toEqual([CLAUDE_CODE_SETUP_SNIPPET]);
+    expect(
+      executeSetupCommand(
+        ["claude-code", "--print"],
+        capture.io,
+        setupRuntime(),
+      ),
+    ).toBe(0);
+    expect(capture.output).toEqual([snippets.claudeCode]);
     expect(capture.warnings).toHaveLength(1);
     expect(capture.warnings[0]).toContain("did not read or modify");
     expect(capture.warnings[0]).toContain("manually");
     expect(capture.warnings[0]).toContain("agentpulse doctor");
     expect(capture.warnings[0]).toContain("%USERPROFILE%");
-    expect(CLAUDE_CODE_SETUP_SNIPPET).toContain("UserPromptSubmit");
-    expect(CLAUDE_CODE_SETUP_SNIPPET).not.toContain("SessionEnd");
+    expect(snippets.claudeCode).toContain("UserPromptSubmit");
+    expect(snippets.claudeCode).not.toContain("SessionEnd");
+    expect(snippets.claudeCode).toContain(
+      "/usr/local/bin/node /workspace/AgentPulse/packages/cli/dist/index.js ingest claude-code",
+    );
   });
 
   it("prints the Codex notify snippet", () => {
     const capture = captureIo();
+    const snippets = createSetupSnippets(undefined, setupRuntime());
 
-    expect(executeSetupCommand(["codex", "--print"], capture.io)).toBe(0);
-    expect(capture.output).toEqual([CODEX_SETUP_SNIPPET]);
+    expect(
+      executeSetupCommand(["codex", "--print"], capture.io, setupRuntime()),
+    ).toBe(0);
+    expect(capture.output).toEqual([snippets.codex]);
     expect(capture.warnings).toHaveLength(1);
     expect(capture.warnings[0]).toContain("did not read or modify");
     expect(capture.warnings[0]).toContain("do not overwrite");
     expect(capture.warnings[0]).toContain("project .codex/config.toml");
     expect(capture.warnings[0]).toContain("agentpulse doctor");
+  });
+
+  it("uses process.execPath for SEA snippets", () => {
+    const snippets = createSetupSnippets(
+      undefined,
+      setupRuntime({
+        isSea: () => true,
+        execPath: "/opt/Agent Pulse/agentpulse",
+        entryPath: undefined,
+      }),
+    );
+
+    expect(snippets.codex).toBe(
+      'notify = ["/opt/Agent Pulse/agentpulse", "ingest", "codex"]',
+    );
+    expect(snippets.codexHooks).toContain(
+      "'/opt/Agent Pulse/agentpulse' ingest codex-hook",
+    );
+  });
+
+  it("uses exact agentpulse only for explicit PATH mode", () => {
+    const capture = captureIo();
+
+    expect(
+      executeSetupCommand(
+        ["codex", "--print", "--binary", "agentpulse"],
+        capture.io,
+        setupRuntime(),
+      ),
+    ).toBe(0);
+    expect(capture.output).toEqual([
+      'notify = ["agentpulse", "ingest", "codex"]',
+    ]);
+  });
+
+  it("accepts an absolute binary override and rejects relative paths", () => {
+    expect(resolveAgentPulseCommand("/opt/agentpulse", setupRuntime())).toEqual(
+      ["/opt/agentpulse"],
+    );
+    expect(() =>
+      resolveAgentPulseCommand("./agentpulse", setupRuntime()),
+    ).toThrow("absolute path");
+  });
+
+  it("renders Windows hook commands with spaces and commandWindows", () => {
+    const runtime = setupRuntime({
+      execPath: "C:\\Program Files\\nodejs\\node.exe",
+      entryPath: "C:\\Agent Pulse\\packages\\cli\\dist\\index.js",
+      platform: "win32",
+    });
+    const snippets = createSetupSnippets(undefined, runtime);
+    const parsed = JSON.parse(snippets.codexHooks) as {
+      hooks: {
+        Stop: { hooks: { command: string; commandWindows?: string }[] }[];
+      };
+    };
+    const handler = parsed.hooks.Stop[0]?.hooks[0];
+
+    expect(handler?.command).toBe(
+      '"C:\\Program Files\\nodejs\\node.exe" "C:\\Agent Pulse\\packages\\cli\\dist\\index.js" "ingest" "codex-hook"',
+    );
+    expect(handler?.commandWindows).toBe(handler?.command);
+    expect(snippets.codex).toContain(
+      '"C:\\\\Program Files\\\\nodejs\\\\node.exe"',
+    );
+  });
+
+  it("quotes POSIX shell tokens without depending on cwd", () => {
+    expect(
+      renderHookCommand(
+        ["/opt/Agent Pulse/agentpulse", "ingest", "codex-hook"],
+        "linux",
+      ),
+    ).toBe("'/opt/Agent Pulse/agentpulse' ingest codex-hook");
   });
 });

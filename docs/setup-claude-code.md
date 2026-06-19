@@ -12,6 +12,20 @@ The command prints a JSON snippet. It does not inspect or modify
 `~/.claude/settings.json`, `.claude/settings.json`, or any other Claude
 configuration.
 
+The generated hook command uses the absolute current AgentPulse standalone
+binary. When invoked through `node packages/cli/dist/index.js`, it instead uses
+the absolute Node executable followed by the absolute CLI entry path. This
+avoids depending on Claude Code's working directory or `PATH`.
+
+To intentionally use PATH mode:
+
+```bash
+agentpulse setup claude-code --print --binary agentpulse
+```
+
+An absolute standalone path can be selected with `--binary <absolute-path>`.
+Relative paths are rejected.
+
 On Windows, `~/.claude/settings.json` resolves to
 `%USERPROFILE%\.claude\settings.json`. On macOS and Linux it resolves below the
 current user's home directory.

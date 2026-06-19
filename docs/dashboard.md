@@ -1,6 +1,6 @@
 # Browser Dashboard
 
-The v0.2.2 dashboard is an optional, local, read-only view of the current daemon
+The v0.2.3 dashboard is an optional, local, read-only view of the current daemon
 process.
 
 ## Start
@@ -24,7 +24,9 @@ agentpulse daemon --dashboard --host ::1
 
 When `--dashboard` is enabled, AgentPulse rejects every host except
 `127.0.0.1` and `::1`. The dashboard cannot be combined with `0.0.0.0`, a LAN
-address, or another non-loopback binding.
+address, or another non-loopback binding. This also applies when the unsafe
+value comes from `AGENTPULSE_HOST`; with no host override the dashboard always
+binds to `127.0.0.1`.
 
 ## Displayed Information
 
@@ -33,7 +35,7 @@ The page shows:
 - daemon health, start time, and process uptime;
 - selected notifier mode;
 - current normalized sessions held in memory;
-- mergeable Claude Code and Codex setup snippets;
+- mergeable Claude Code, Codex notify, and Codex hooks setup snippets;
 - basic read-only doctor checks.
 
 The browser requests `/dashboard/api` every two seconds and also provides a

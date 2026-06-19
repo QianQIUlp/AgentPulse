@@ -17,15 +17,29 @@ failure. Unsupported events are ignored.
 could overwrite a terminal session state. The setup snippet does not register
 that hook.
 
-## Narrow official integration: Codex CLI
+## Precise integration: Codex hooks
+
+The Codex hooks adapter consumes documented lifecycle JSON from stdin and maps
+session, prompt, tool, permission-request, and stop events. It is
+observation-only: it emits no hook response fields and cannot approve, deny,
+rewrite, continue, stop, or add context to Codex behavior.
+
+The setup command prints a mergeable fragment only. Users must review and trust
+the exact command through Codex `/hooks`; AgentPulse does not bypass that trust
+mechanism.
+
+The adapter does not read prompts, transcript files or paths, tool input,
+tool response/output, assistant messages, or complete payloads.
+
+## Narrow official integration: Codex notify
 
 The Codex adapter consumes the documented external `notify` JSON argument.
 Codex currently documents only `agent-turn-complete` for this interface, so
 v0.2 maps only that event to `completed`.
 
-AgentPulse does not claim Codex `running`, `waiting_input`, or
-`waiting_permission` support. Built-in TUI notifications and the app-server
-protocol are separate interfaces and are not used by this adapter.
+The notify interface by itself does not claim Codex `running`, `waiting_input`,
+or `waiting_permission`. Built-in TUI notifications and the app-server protocol
+are separate interfaces and are not used by this adapter.
 
 The adapter never copies complete `input-messages`; it uses a bounded
 `last-assistant-message` when available.

@@ -60,7 +60,6 @@ run_binary() {
   "$ENV_COMMAND" -i \
     PATH="$BIN_DIR" \
     HOME="$HOME_DIR" \
-    AGENTPULSE_HOST="127.0.0.1" \
     AGENTPULSE_PORT="$PORT" \
     "$BIN" "$@"
 }
@@ -69,16 +68,29 @@ run_binary --help >"$WORK/help.txt"
 "$GREP" -qF "AgentPulse v$VERSION" "$WORK/help.txt"
 run_binary setup claude-code --print >"$WORK/claude-setup.txt" 2>"$WORK/claude-guidance.txt"
 "$GREP" -qF '"hooks"' "$WORK/claude-setup.txt"
+"$GREP" -qF "$BIN ingest claude-code" "$WORK/claude-setup.txt"
 run_binary setup codex --print >"$WORK/codex-setup.txt" 2>"$WORK/codex-guidance.txt"
-"$GREP" -qF 'notify = ["agentpulse", "ingest", "codex"]' "$WORK/codex-setup.txt"
+"$GREP" -qF "\"$BIN\", \"ingest\", \"codex\"" "$WORK/codex-setup.txt"
+run_binary setup codex-hooks --print >"$WORK/codex-hooks-setup.txt" 2>"$WORK/codex-hooks-guidance.txt"
+"$GREP" -qF "$BIN ingest codex-hook" "$WORK/codex-hooks-setup.txt"
+"$GREP" -qF "reviewed and trusted" "$WORK/codex-hooks-guidance.txt"
+
+if "$ENV_COMMAND" -i \
+  PATH="$BIN_DIR" \
+  HOME="$HOME_DIR" \
+  AGENTPULSE_HOST="0.0.0.0" \
+  AGENTPULSE_PORT="$PORT" \
+  "$BIN" daemon --dashboard --notifier none >"$WORK/unsafe-dashboard.txt" 2>&1; then
+  echo "Dashboard unexpectedly accepted AGENTPULSE_HOST=0.0.0.0" >&2
+  exit 1
+fi
+"$GREP" -qF "requires --host 127.0.0.1 or --host ::1" "$WORK/unsafe-dashboard.txt"
 
 "$ENV_COMMAND" -i \
   PATH="$BIN_DIR" \
   HOME="$HOME_DIR" \
-  AGENTPULSE_HOST="127.0.0.1" \
   AGENTPULSE_PORT="$PORT" \
   "$BIN" daemon \
-  --host 127.0.0.1 \
   --port "$PORT" \
   --notifier none \
   --dashboard >"$WORK/daemon.log" 2>&1 &
@@ -104,6 +116,18 @@ done
 run_binary doctor --json --notifier none >"$WORK/doctor.json"
 "$GREP" -qF '"ok": true' "$WORK/doctor.json"
 "$GREP" -qF '"status": "skipped"' "$WORK/doctor.json"
+
+printf '%s' '{"session_id":"standalone-codex-hook","cwd":"/tmp/demo","hook_event_name":"PermissionRequest","prompt":"must-not-leak","tool_input":{"command":"must-not-leak"}}' \
+  | run_binary ingest codex-hook >"$WORK/codex-hook.stdout" 2>"$WORK/codex-hook.stderr"
+test ! -s "$WORK/codex-hook.stdout"
+test ! -s "$WORK/codex-hook.stderr"
+run_binary status --json >"$WORK/codex-hook-status.json"
+"$GREP" -qF '"sessionId": "standalone-codex-hook"' "$WORK/codex-hook-status.json"
+"$GREP" -qF '"status": "waiting_permission"' "$WORK/codex-hook-status.json"
+if "$GREP" -qF "must-not-leak" "$WORK/codex-hook-status.json"; then
+  echo "Codex hook sensitive fields leaked into status output" >&2
+  exit 1
+fi
 
 run_binary emit \
   --source custom \
