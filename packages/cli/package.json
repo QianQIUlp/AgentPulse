@@ -1,0 +1,21 @@
+{
+  "name": "@agentpulse/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "agentpulse": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@agentpulse/adapter-generic-cli": "workspace:^",
+    "@agentpulse/core": "workspace:^",
+    "@agentpulse/daemon": "workspace:^",
+    "@agentpulse/shared": "workspace:^"
+  }
+}
