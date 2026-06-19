@@ -22,6 +22,21 @@ $Taskkill = (Get-Command taskkill.exe -ErrorAction Stop).Source
 $Where = (Get-Command where.exe -ErrorAction Stop).Source
 $DaemonControl = Join-Path $Root "scripts\windows-daemon-control.mjs"
 
+function Convert-StreamToText {
+  param([object]$Value)
+
+  if ($null -eq $Value) {
+    return [string]""
+  }
+
+  if ($Value -is [array]) {
+    $lines = @($Value | ForEach-Object { [string]$_ })
+    return [string]($lines -join [Environment]::NewLine)
+  }
+
+  return [string]$Value
+}
+
 function Invoke-AgentPulse {
   param(
     [string[]]$Arguments,
@@ -29,14 +44,14 @@ function Invoke-AgentPulse {
     [switch]$AllowFailure
   )
 
-  $stdout = Join-Path $Work "command-$([guid]::NewGuid()).stdout"
-  $stderr = Join-Path $Work "command-$([guid]::NewGuid()).stderr"
+  $stdoutPath = Join-Path $Work "command-$([guid]::NewGuid()).stdout"
+  $stderrPath = Join-Path $Work "command-$([guid]::NewGuid()).stderr"
   $stdinFile = $null
   $start = @{
     FilePath = $Bin
     ArgumentList = $Arguments
-    RedirectStandardOutput = $stdout
-    RedirectStandardError = $stderr
+    RedirectStandardOutput = $stdoutPath
+    RedirectStandardError = $stderrPath
     NoNewWindow = $true
     PassThru = $true
     Wait = $true
@@ -48,13 +63,17 @@ function Invoke-AgentPulse {
   }
 
   $process = Start-Process @start
+  $stdoutValue = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { $null }
+  $stderrValue = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { $null }
+  $stdoutText = [string](Convert-StreamToText -Value $stdoutValue)
+  $stderrText = [string](Convert-StreamToText -Value $stderrValue)
   $result = [pscustomobject]@{
     ExitCode = $process.ExitCode
-    Stdout = if (Test-Path $stdout) { Get-Content $stdout -Raw } else { "" }
-    Stderr = if (Test-Path $stderr) { Get-Content $stderr -Raw } else { "" }
+    Stdout = [string]$stdoutText
+    Stderr = [string]$stderrText
   }
   if (-not $AllowFailure -and $result.ExitCode -ne 0) {
-    throw "agentpulse $($Arguments -join ' ') failed with $($result.ExitCode): $($result.Stderr)"
+    throw "agentpulse $($Arguments -join ' ') failed with $($result.ExitCode): $stderrText"
   }
   return $result
 }
@@ -353,8 +372,10 @@ try {
 
   $hookPayload = '{"session_id":"windows-codex-hook","cwd":"C:\\demo","hook_event_name":"PermissionRequest","prompt":"must-not-leak","tool_input":{"command":"must-not-leak"}}'
   $hook = Invoke-AgentPulse -Arguments @("ingest", "codex-hook") -Stdin $hookPayload
-  if ($hook.Stdout.Length -ne 0 -or $hook.Stderr.Length -ne 0) {
-    throw "Successful Codex hook ingest must be silent."
+  $hookStdout = [string](Convert-StreamToText -Value $hook.Stdout)
+  $hookStderr = [string](Convert-StreamToText -Value $hook.Stderr)
+  if ($hookStdout.Length -ne 0 -or $hookStderr.Length -ne 0) {
+    throw "Codex hook ingest should be silent on success."
   }
 
   Invoke-AgentPulse -Arguments @(
