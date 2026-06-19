@@ -14,5 +14,11 @@
   ],
   "scripts": {
     "build": "tsc -b"
+  },
+  "dependencies": {
+    "@agentpulse/core": "workspace:^",
+    "@agentpulse/notifier": "workspace:^",
+    "@agentpulse/shared": "workspace:^",
+    "zod": "^3.25.56"
   }
 }

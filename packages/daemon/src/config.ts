@@ -1,0 +1,28 @@
+import { DEFAULT_DAEMON_HOST, DEFAULT_DAEMON_PORT } from "@agentpulse/shared";
+
+export interface DaemonConfig {
+  host: string;
+  port: number;
+}
+
+export type DaemonConfigOverrides = Partial<DaemonConfig>;
+
+export function resolveDaemonConfig(
+  overrides: DaemonConfigOverrides = {},
+  env: NodeJS.ProcessEnv = process.env,
+): DaemonConfig {
+  const host = overrides.host ?? env.AGENTPULSE_HOST ?? DEFAULT_DAEMON_HOST;
+  const portValue =
+    overrides.port ?? env.AGENTPULSE_PORT ?? DEFAULT_DAEMON_PORT;
+  const port = typeof portValue === "number" ? portValue : Number(portValue);
+
+  if (!host) {
+    throw new Error("Daemon host cannot be empty");
+  }
+
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`Invalid daemon port: ${String(portValue)}`);
+  }
+
+  return { host, port };
+}

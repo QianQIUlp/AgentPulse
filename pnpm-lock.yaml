@@ -30,7 +30,20 @@ importers:
         specifier: ^3.25.56
         version: 3.25.76
 
-  packages/daemon: {}
+  packages/daemon:
+    dependencies:
+      "@agentpulse/core":
+        specifier: workspace:^
+        version: link:../core
+      "@agentpulse/notifier":
+        specifier: workspace:^
+        version: link:../notifier
+      "@agentpulse/shared":
+        specifier: workspace:^
+        version: link:../shared
+      zod:
+        specifier: ^3.25.56
+        version: 3.25.76
 
   packages/notifier:
     dependencies:
