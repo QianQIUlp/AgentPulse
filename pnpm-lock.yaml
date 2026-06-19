@@ -32,7 +32,11 @@ importers:
 
   packages/daemon: {}
 
-  packages/notifier: {}
+  packages/notifier:
+    dependencies:
+      "@agentpulse/core":
+        specifier: workspace:^
+        version: link:../core
 
   packages/shared: {}
 
