@@ -1,0 +1,11 @@
+{
+  "type": "agent-turn-complete",
+  "thread-id": "fixture-codex-thread",
+  "turn-id": "fixture-turn",
+  "cwd": "/workspace/sanitized-project",
+  "input-messages": ["private-user-prompt-placeholder"],
+  "last-assistant-message": "Sanitized completion",
+  "rawEvent": {
+    "secret": "private-secret-placeholder"
+  }
+}

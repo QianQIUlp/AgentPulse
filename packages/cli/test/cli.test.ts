@@ -13,6 +13,7 @@ import type { Notifier } from "@agentpulse/notifier";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { DaemonClient, type AgentPulseClient } from "../src/daemon-client.js";
+import { executeDaemonCommand } from "../src/commands/daemon.js";
 import { executeEmitCommand } from "../src/commands/emit.js";
 import { executeRunCommand } from "../src/commands/run.js";
 import { executeStatusCommand } from "../src/commands/status.js";
@@ -116,6 +117,17 @@ describe("CLI commands", () => {
     expect(capture.warnings).toHaveLength(2);
   });
 
+  it("gives an actionable daemon-unreachable error without transport details", async () => {
+    const client = new DaemonClient({
+      baseUrl: "http://127.0.0.1:1",
+    });
+
+    await expect(client.sessions()).rejects.toThrow(
+      "agentpulse daemon --notifier console",
+    );
+    await expect(client.sessions()).rejects.not.toThrow("fetch failed");
+  });
+
   it("preserves a wrapped command's non-zero exit code", async () => {
     const capture = captureIo();
     const client: AgentPulseClient = {
@@ -152,5 +164,26 @@ describe("CLI commands", () => {
         capture.io,
       ),
     ).rejects.toThrow("supports only --source generic-cli");
+  });
+
+  it("explains how to recover from a daemon port conflict", async () => {
+    daemon = await startDaemon(
+      { host: "127.0.0.1", port: 0 },
+      new AgentPulseService({ notifier: new SilentNotifier() }),
+    );
+    const capture = captureIo();
+
+    await expect(
+      executeDaemonCommand(
+        ["--host", "127.0.0.1", "--port", String(daemon.port)],
+        capture.io,
+      ),
+    ).rejects.toThrow("already in use");
+    await expect(
+      executeDaemonCommand(
+        ["--host", "127.0.0.1", "--port", String(daemon.port)],
+        capture.io,
+      ),
+    ).rejects.toThrow("agentpulse daemon --port <port>");
   });
 });

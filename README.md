@@ -5,8 +5,9 @@ translate lifecycle events into one normalized model, a local daemon aggregates
 sessions, and notifier outputs surface states that need attention.
 
 v0.2 adds precise Claude Code hooks, the narrow official Codex CLI notify
-integration, and optional OS notifications. The v0.1 manual emit and generic
-command wrapper remain supported.
+integration, and optional OS notifications. v0.2.1 hardens installation,
+diagnostics, setup merging, and failure recovery. The v0.1 manual emit and
+generic command wrapper remain supported.
 
 ## Requirements
 
@@ -34,6 +35,20 @@ Start the daemon with the default console notifier:
 ```bash
 agentpulse daemon
 ```
+
+Check the local installation and daemon connection without changing
+configuration:
+
+```bash
+agentpulse doctor
+agentpulse doctor --json
+agentpulse doctor --notifier os
+```
+
+`doctor` is read-only. It does not start a daemon, send a desktop notification,
+or modify Claude Code or Codex configuration. An unreachable daemon is an
+error; an unavailable optional OS notifier is a warning with a console
+fallback.
 
 Select a notifier with a flag or environment variable:
 
@@ -85,7 +100,9 @@ agentpulse setup codex --print
 ```
 
 These commands only print snippets. They never read, overwrite, or modify user
-configuration. Manually merge the output with existing settings:
+configuration. The snippet is written to stdout so it can be redirected; merge
+instructions and conflict warnings are written to stderr. Manually merge the
+output with existing settings:
 
 - [Claude Code setup](docs/setup-claude-code.md)
 - [Codex setup](docs/setup-codex.md)
@@ -172,6 +189,10 @@ For local end-to-end verification without a global link, use:
 ```bash
 node packages/cli/dist/index.js
 ```
+
+See the [dogfood report](docs/dogfood-report.md) for verification categories
+and manual test steps, and [troubleshooting](docs/troubleshooting.md) for
+installation, daemon, notifier, hook, and configuration recovery.
 
 ## v0.2 scope boundaries
 

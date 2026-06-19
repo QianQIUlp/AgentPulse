@@ -9,15 +9,15 @@ export const OS_NOTIFICATION_TIMEOUT_MS = 1_000;
 
 export const OS_NOTIFIER_WARNINGS = {
   callback:
-    "AgentPulse OS notification failed in its callback; continuing without interrupting the daemon.",
+    "AgentPulse warning: the OS notifier reported a delivery failure. The event was ingested, but no desktop notification was confirmed. The daemon is still running. Fallback: restart with `agentpulse daemon --notifier console`.",
   import:
-    "AgentPulse OS notification module could not be loaded; continuing without OS notifications.",
+    "AgentPulse warning: the OS notifier module could not be loaded. Desktop notifications are unavailable, but the daemon will continue ingesting events. Fallback: restart with `agentpulse daemon --notifier console`.",
   runtime:
-    "AgentPulse OS notification failed at runtime; continuing without interrupting the daemon.",
+    "AgentPulse warning: the OS notifier failed while sending a notification. The event was ingested and the daemon is still running. Fallback: restart with `agentpulse daemon --notifier console`.",
   shape:
-    "AgentPulse OS notification module is unsupported; continuing without OS notifications.",
+    "AgentPulse warning: the installed OS notifier module has an unsupported interface. Desktop notifications are unavailable, but the daemon will continue ingesting events. Fallback: restart with `agentpulse daemon --notifier console`.",
   timeout:
-    "AgentPulse OS notification timed out; continuing without interrupting the daemon.",
+    "AgentPulse warning: the OS notifier timed out before confirming delivery. The event was ingested and the daemon is still running. Fallback: restart with `agentpulse daemon --notifier console`.",
 } as const;
 
 export interface OsNotification {
@@ -38,6 +38,10 @@ export interface OsNotifierOptions {
   timeoutMs?: number;
   warning?: OsNotifierWarningWriter;
 }
+
+export type OsNotifierProbeResult =
+  | { available: true }
+  | { available: false; reason: "import" | "shape" };
 
 function truncate(value: string, limit: number): string {
   if (value.length <= limit) {
@@ -65,6 +69,26 @@ function senderFromModule(module: unknown): OsNotificationSender | undefined {
   return (notification, callback) => {
     notify.call(candidate, notification, callback);
   };
+}
+
+export async function probeOsNotifier(
+  loader: OsNotifierModuleLoader = () => import("node-notifier"),
+): Promise<OsNotifierProbeResult> {
+  let module: unknown;
+
+  try {
+    module = await loader();
+  } catch {
+    return { available: false, reason: "import" };
+  }
+
+  try {
+    return senderFromModule(module)
+      ? { available: true }
+      : { available: false, reason: "shape" };
+  } catch {
+    return { available: false, reason: "shape" };
+  }
 }
 
 export function formatOsNotification(

@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+
+import { normalizeAgentEvent } from "@agentpulse/core";
 import { describe, expect, it } from "vitest";
 
 import { ingestClaudeHookJson, mapClaudeEvent } from "../src/index.js";
@@ -18,6 +21,33 @@ function eventFor(payload: Record<string, unknown>) {
 }
 
 describe("Claude Code adapter", () => {
+  it("normalizes a sanitized fixture without retaining private payload fields", () => {
+    const fixture = readFileSync(
+      new URL("./fixtures/stop.sanitized.json", import.meta.url),
+      "utf8",
+    );
+    const result = ingestClaudeHookJson(fixture);
+
+    expect(result.kind).toBe("event");
+    if (result.kind !== "event") {
+      throw new Error("Expected fixture to map");
+    }
+
+    const event = normalizeAgentEvent(result.event);
+    expect(event).toMatchObject({
+      source: "claude-code",
+      surface: "cli",
+      status: "completed",
+      sessionId: "fixture-claude-session",
+      projectPath: "/workspace/sanitized-project",
+      title: "Stop",
+      message: "Sanitized completion",
+    });
+    expect(JSON.stringify(event)).not.toContain("private-command-placeholder");
+    expect(JSON.stringify(event)).not.toContain("private-secret-placeholder");
+    expect(JSON.stringify(event)).not.toContain("transcript");
+  });
+
   it.each([
     ["SessionStart", "running"],
     ["UserPromptSubmit", "running"],

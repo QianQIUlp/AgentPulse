@@ -47,9 +47,10 @@ export class DaemonClient implements AgentPulseClient {
 
     try {
       response = await fetch(`${this.#baseUrl}${path}`, init);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      throw new Error(`Cannot reach AgentPulse daemon: ${reason}`);
+    } catch {
+      throw new Error(
+        `Cannot reach the AgentPulse daemon at ${this.#baseUrl}. Start it with \`agentpulse daemon --notifier console\`, or verify AGENTPULSE_HOST and AGENTPULSE_PORT.`,
+      );
     }
 
     const body = (await response.json()) as T | { error?: string };

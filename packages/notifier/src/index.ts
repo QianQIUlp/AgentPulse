@@ -19,10 +19,12 @@ export {
   OS_NOTIFICATION_TITLE_LIMIT,
   OS_NOTIFIER_WARNINGS,
   OsNotifier,
+  probeOsNotifier,
   type OsNotification,
   type OsNotificationCallback,
   type OsNotificationSender,
   type OsNotifierModuleLoader,
   type OsNotifierOptions,
+  type OsNotifierProbeResult,
   type OsNotifierWarningWriter,
 } from "./os-notifier.js";

@@ -132,6 +132,10 @@ describe("platform ingest commands", () => {
     expect(target.events).toEqual([]);
     expect(capture.warnings).toHaveLength(2);
     expect(capture.warnings.join("\n")).not.toContain("{");
+    expect(capture.warnings.join("\n")).toContain("No event was recorded");
+    expect(capture.warnings.join("\n")).toContain(
+      "host workflow will continue",
+    );
   });
 
   it("does not block the platform when the daemon is unavailable", async () => {
@@ -157,9 +161,11 @@ describe("platform ingest commands", () => {
     );
 
     expect(code).toBe(0);
-    expect(capture.warnings).toEqual([
-      "AgentPulse ingest warning: unable to deliver event to the AgentPulse daemon",
-    ]);
+    expect(capture.warnings).toHaveLength(1);
+    expect(capture.warnings[0]).toContain("so it was not recorded");
+    expect(capture.warnings[0]).toContain(
+      "agentpulse daemon --notifier console",
+    );
     expect(capture.warnings.join("\n")).not.toContain("connection detail");
   });
 
@@ -178,9 +184,11 @@ describe("platform ingest commands", () => {
 
     expect(code).toBe(0);
     expect(target.events).toEqual([]);
-    expect(capture.warnings).toEqual([
-      "AgentPulse ingest warning: unable to read platform input",
-    ]);
+    expect(capture.warnings).toHaveLength(1);
+    expect(capture.warnings[0]).toContain(
+      "unable to read platform input, so no event was recorded",
+    );
+    expect(capture.warnings[0]).toContain("agentpulse doctor");
     expect(capture.warnings.join("\n")).not.toContain("stdin detail");
   });
 });
@@ -191,6 +199,11 @@ describe("setup snippet commands", () => {
 
     expect(executeSetupCommand(["claude-code", "--print"], capture.io)).toBe(0);
     expect(capture.output).toEqual([CLAUDE_CODE_SETUP_SNIPPET]);
+    expect(capture.warnings).toHaveLength(1);
+    expect(capture.warnings[0]).toContain("did not read or modify");
+    expect(capture.warnings[0]).toContain("manually");
+    expect(capture.warnings[0]).toContain("agentpulse doctor");
+    expect(capture.warnings[0]).toContain("%USERPROFILE%");
     expect(CLAUDE_CODE_SETUP_SNIPPET).toContain("UserPromptSubmit");
     expect(CLAUDE_CODE_SETUP_SNIPPET).not.toContain("SessionEnd");
   });
@@ -200,5 +213,10 @@ describe("setup snippet commands", () => {
 
     expect(executeSetupCommand(["codex", "--print"], capture.io)).toBe(0);
     expect(capture.output).toEqual([CODEX_SETUP_SNIPPET]);
+    expect(capture.warnings).toHaveLength(1);
+    expect(capture.warnings[0]).toContain("did not read or modify");
+    expect(capture.warnings[0]).toContain("do not overwrite");
+    expect(capture.warnings[0]).toContain("project .codex/config.toml");
+    expect(capture.warnings[0]).toContain("agentpulse doctor");
   });
 });
