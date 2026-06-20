@@ -379,13 +379,23 @@ try {
   $hookResponse = $hookStdout | ConvertFrom-Json
   $hookResponseProperties = @($hookResponse.PSObject.Properties)
   if ($hookStderr.Length -ne 0 -or
-      $hookStdout -cne "{}" -or
-      $hook.StdoutBytes.Count -ne 2 -or
+      $hookStdout -cne '{"continue":true}' -or
+      $hook.StdoutBytes.Count -ne 17 -or
       $hook.StdoutBytes[0] -ne 0x7B -or
-      $hook.StdoutBytes[1] -ne 0x7D -or
+      $hook.StdoutBytes[16] -ne 0x7D -or
       $hookStdout.Contains("must-not-leak") -or
-      $hookResponseProperties.Count -ne 0) {
-    throw "Codex hook ingest did not return the expected no-op JSON."
+      $hookResponseProperties.Count -ne 1 -or
+      $hookResponseProperties[0].Name -cne "continue" -or
+      $hookResponse.continue -ne $true) {
+    throw "Codex Stop hook ingest did not return the expected JSON."
+  }
+
+  $toolHookPayload = '{"session_id":"windows-codex-tool-hook","cwd":"C:\\demo","hook_event_name":"PreToolUse","tool_name":"Bash","prompt":"must-not-leak","tool_input":{"command":"must-not-leak"}}'
+  $toolHook = Invoke-AgentPulse -Arguments @("ingest", "codex-hook") -Stdin $toolHookPayload
+  if ($toolHook.ExitCode -ne 0 -or
+      $toolHook.StdoutBytes.Count -ne 0 -or
+      $toolHook.Stderr.Length -ne 0) {
+    throw "Codex PreToolUse hook ingest should have empty stdout and stderr."
   }
 
   Invoke-AgentPulse -Arguments @(
@@ -395,9 +405,12 @@ try {
   $status = Invoke-AgentPulse -Arguments @("status", "--json")
   $sessions = @($status.Stdout | ConvertFrom-Json)
   $hookSessions = @($sessions | Where-Object { $_.sessionId -ceq "windows-codex-hook" })
+  $toolHookSessions = @($sessions | Where-Object { $_.sessionId -ceq "windows-codex-tool-hook" })
   $manualSessions = @($sessions | Where-Object { $_.sessionId -ceq "windows-standalone-smoke" })
   if ($hookSessions.Count -ne 1 -or
       $hookSessions[0].status -cne "completed" -or
+      $toolHookSessions.Count -ne 1 -or
+      $toolHookSessions[0].status -cne "using_tool" -or
       $manualSessions.Count -ne 1 -or
       $status.Stdout -match "must-not-leak") {
     throw "Status output is missing smoke sessions or leaked sensitive hook data."

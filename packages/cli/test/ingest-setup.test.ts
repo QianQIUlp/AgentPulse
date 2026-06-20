@@ -53,8 +53,8 @@ function setupRuntime(overrides: Partial<SetupRuntime> = {}): SetupRuntime {
   };
 }
 
-function expectCodexHookNoop(capture: ReturnType<typeof captureIo>): void {
-  expect(capture.output).toEqual(["{}"]);
+function expectCodexStopResponse(capture: ReturnType<typeof captureIo>): void {
+  expect(capture.output).toEqual(['{"continue":true}']);
   const raw = capture.output[0] ?? "";
   const normalized = raw.endsWith("\r\n")
     ? raw.slice(0, -2)
@@ -62,8 +62,13 @@ function expectCodexHookNoop(capture: ReturnType<typeof captureIo>): void {
       ? raw.slice(0, -1)
       : raw;
   const parsed = JSON.parse(normalized) as Record<string, unknown>;
-  expect(parsed).toEqual({});
-  expect(Object.keys(parsed)).toHaveLength(0);
+  expect(parsed).toEqual({ continue: true });
+  expect(Object.keys(parsed)).toEqual(["continue"]);
+  expect(capture.warnings).toEqual([]);
+}
+
+function expectSilentCodexHook(capture: ReturnType<typeof captureIo>): void {
+  expect(capture.output).toEqual([]);
   expect(capture.warnings).toEqual([]);
 }
 
@@ -139,13 +144,51 @@ describe("platform ingest commands", () => {
     expect(target.events[0]?.sessionId).toBe("codex-stdin");
   });
 
+  it("returns the Stop JSON response without leaking sensitive fields", async () => {
+    const capture = captureIo();
+    const target = captureClient();
+
+    const code = await executeIngestCommand(
+      ["codex-hook"],
+      target.client,
+      capture.io,
+      async () =>
+        JSON.stringify({
+          session_id: "codex-Stop",
+          cwd: "/tmp/demo",
+          hook_event_name: "Stop",
+          prompt: "secret prompt",
+          tool_input: { command: "secret command" },
+          tool_response: "secret response",
+          transcript_path: "/tmp/secret-transcript",
+          rawEvent: { secret: true },
+        }),
+    );
+
+    expect(code).toBe(0);
+    expect(target.events).toEqual([
+      {
+        source: "codex",
+        surface: "cli",
+        status: "completed",
+        title: "Stop",
+        sessionId: "codex-Stop",
+        projectPath: "/tmp/demo",
+      },
+    ]);
+    expect(JSON.stringify(target.events)).not.toContain("secret");
+    expect(JSON.stringify(capture)).not.toContain("secret");
+    expectCodexStopResponse(capture);
+  });
+
   it.each([
-    ["Stop", "completed", undefined],
+    ["SessionStart", "running", undefined],
     ["UserPromptSubmit", "running", undefined],
     ["PreToolUse", "using_tool", "Using tool: Bash"],
     ["PermissionRequest", "waiting_permission", undefined],
+    ["PostToolUse", "running", undefined],
   ] as const)(
-    "returns empty no-op JSON for a successful %s hook",
+    "keeps stdout empty for a successful %s hook",
     async (hookEventName, status, message) => {
       const capture = captureIo();
       const target = captureClient();
@@ -182,7 +225,7 @@ describe("platform ingest commands", () => {
       ]);
       expect(JSON.stringify(target.events)).not.toContain("secret");
       expect(JSON.stringify(capture)).not.toContain("secret");
-      expectCodexHookNoop(capture);
+      expectSilentCodexHook(capture);
     },
   );
 
@@ -268,7 +311,7 @@ describe("platform ingest commands", () => {
     expect(capture.warnings.join("\n")).not.toContain("stdin detail");
   });
 
-  it("returns no-op JSON without stderr for unsupported Codex hooks", async () => {
+  it("returns empty stdout and stderr for unsupported Codex hooks", async () => {
     const capture = captureIo();
     const target = captureClient();
 
@@ -281,11 +324,11 @@ describe("platform ingest commands", () => {
 
     expect(code).toBe(0);
     expect(target.events).toEqual([]);
-    expectCodexHookNoop(capture);
+    expectSilentCodexHook(capture);
   });
 
   it.each(["{", JSON.stringify({ session_id: "missing-event" })])(
-    "returns no-op JSON and exit zero for invalid Codex hook input",
+    "returns empty stdout and exit zero for invalid Codex hook input",
     async (input) => {
       const capture = captureIo();
       const target = captureClient();
@@ -299,38 +342,49 @@ describe("platform ingest commands", () => {
 
       expect(code).toBe(0);
       expect(target.events).toEqual([]);
-      expectCodexHookNoop(capture);
+      expectSilentCodexHook(capture);
     },
   );
 
-  it("returns no-op JSON and exit zero when the daemon is unavailable", async () => {
-    const capture = captureIo();
-    const client: AgentPulseClient = {
-      emit: async () => {
-        throw new Error("private connection detail");
-      },
-      sessions: async () => [],
-    };
+  it.each([
+    ["Stop", '{"continue":true}'],
+    ["PreToolUse", undefined],
+  ] as const)(
+    "preserves the %s response when the daemon is unavailable",
+    async (hookEventName, expectedResponse) => {
+      const capture = captureIo();
+      const client: AgentPulseClient = {
+        emit: async () => {
+          throw new Error("private connection detail");
+        },
+        sessions: async () => [],
+      };
 
-    const code = await executeIngestCommand(
-      ["codex-hook"],
-      client,
-      capture.io,
-      async () =>
-        JSON.stringify({
-          session_id: "offline-hook",
-          hook_event_name: "Stop",
-          prompt: "private prompt",
-          tool_input: { command: "private command" },
-        }),
-    );
+      const code = await executeIngestCommand(
+        ["codex-hook"],
+        client,
+        capture.io,
+        async () =>
+          JSON.stringify({
+            session_id: "offline-hook",
+            hook_event_name: hookEventName,
+            tool_name: "Bash",
+            prompt: "private prompt",
+            tool_input: { command: "private command" },
+          }),
+      );
 
-    expect(code).toBe(0);
-    expect(JSON.stringify(capture)).not.toContain("private");
-    expectCodexHookNoop(capture);
-  });
+      expect(code).toBe(0);
+      expect(JSON.stringify(capture)).not.toContain("private");
+      if (expectedResponse) {
+        expectCodexStopResponse(capture);
+      } else {
+        expectSilentCodexHook(capture);
+      }
+    },
+  );
 
-  it("returns no-op JSON without stderr when Codex hook stdin cannot be read", async () => {
+  it("returns empty stdout without stderr when Codex hook stdin cannot be read", async () => {
     const capture = captureIo();
     const target = captureClient();
 
@@ -346,10 +400,10 @@ describe("platform ingest commands", () => {
     expect(code).toBe(0);
     expect(target.events).toEqual([]);
     expect(JSON.stringify(capture)).not.toContain("private");
-    expectCodexHookNoop(capture);
+    expectSilentCodexHook(capture);
   });
 
-  it("returns no-op JSON without stderr for unexpected Codex hook arguments", async () => {
+  it("returns empty stdout without stderr for unexpected Codex hook arguments", async () => {
     const capture = captureIo();
     const target = captureClient();
 
@@ -364,7 +418,7 @@ describe("platform ingest commands", () => {
 
     expect(code).toBe(0);
     expect(target.events).toEqual([]);
-    expectCodexHookNoop(capture);
+    expectSilentCodexHook(capture);
   });
 });
 

@@ -52,13 +52,18 @@ bounded tool name where useful. It does not read or retain prompts,
 `transcript_path`, tool input, tool response/output, assistant messages, or the
 complete payload.
 
-Every invocation writes the empty no-op JSON `{}` to stdout and exits zero,
-including invalid JSON, unsupported events, and daemon delivery failures. This
-satisfies Codex hook JSON parsing without changing Codex behavior. Codex hook
-ingest writes nothing to stderr by default. The response does not contain
-`continue`, `stopReason`, `systemMessage`, `suppressOutput`, `decision`,
-`permissionDecision`, `additionalContext`, `updatedInput`, or
-`updatedPermissions`, so AgentPulse remains observation-only.
+Codex CLI 0.141.0 rejects `{}` as invalid output for a successful `Stop` hook.
+For `Stop`, AgentPulse therefore writes only `{"continue":true}` to stdout.
+This satisfies the required Stop JSON schema without requesting another turn or
+blocking the completed turn. Session, prompt, tool, and permission hooks write
+nothing to stdout. Invalid JSON and unsupported events also use empty stdout.
+Every path exits zero and writes nothing to stderr by default, including daemon
+delivery failures.
+
+AgentPulse does not return `continue: false`, `stopReason`, `systemMessage`,
+`suppressOutput`, `decision`, `permissionDecision`, `additionalContext`,
+`updatedInput`, or `updatedPermissions`, so the integration remains
+observation-only.
 
 ## Verify
 

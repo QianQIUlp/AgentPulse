@@ -125,8 +125,9 @@ test ! -s "$WORK/codex-hook.stderr"
   const output = require("node:fs").readFileSync(process.argv[1]);
   const parsed = JSON.parse(output.toString("utf8"));
   if (
-    !output.equals(Buffer.from("{}")) ||
-    Object.keys(parsed).length !== 0 ||
+    !output.equals(Buffer.from("{\"continue\":true}")) ||
+    parsed.continue !== true ||
+    Object.keys(parsed).length !== 1 ||
     output.includes(Buffer.from("must-not-leak"))
   ) {
     process.exit(1);
@@ -137,6 +138,18 @@ run_binary status --json >"$WORK/codex-hook-status.json"
 "$GREP" -qF '"status": "completed"' "$WORK/codex-hook-status.json"
 if "$GREP" -qF "must-not-leak" "$WORK/codex-hook-status.json"; then
   echo "Codex hook sensitive fields leaked into status output" >&2
+  exit 1
+fi
+
+printf '%s' '{"session_id":"standalone-codex-tool-hook","cwd":"/tmp/demo","hook_event_name":"PreToolUse","tool_name":"Bash","prompt":"must-not-leak","tool_input":{"command":"must-not-leak"}}' \
+  | run_binary ingest codex-hook >"$WORK/codex-tool-hook.stdout" 2>"$WORK/codex-tool-hook.stderr"
+test ! -s "$WORK/codex-tool-hook.stdout"
+test ! -s "$WORK/codex-tool-hook.stderr"
+run_binary status --json >"$WORK/codex-tool-hook-status.json"
+"$GREP" -qF '"sessionId": "standalone-codex-tool-hook"' "$WORK/codex-tool-hook-status.json"
+"$GREP" -qF '"status": "using_tool"' "$WORK/codex-tool-hook-status.json"
+if "$GREP" -qF "must-not-leak" "$WORK/codex-tool-hook-status.json"; then
+  echo "Codex tool hook sensitive fields leaked into status output" >&2
   exit 1
 fi
 
