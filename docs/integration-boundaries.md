@@ -22,9 +22,10 @@ that hook.
 The Codex hooks adapter consumes documented lifecycle JSON from stdin and maps
 session, prompt, tool, permission-request, and stop events. It is
 observation-only: the ingest command returns only the no-op JSON
-`{"continue":true}` required by the hook stdout contract. It does not return
-additional context, system messages, permission decisions, updated input,
-suppression, blocking, or other fields that change Codex behavior.
+`{}` required for hook JSON parsing. It does not return `continue`,
+`stopReason`, `systemMessage`, `suppressOutput`, `decision`,
+`permissionDecision`, `additionalContext`, `updatedInput`,
+`updatedPermissions`, or other fields that change Codex behavior.
 
 The setup command prints a mergeable fragment only. Users must review and trust
 the exact command through Codex `/hooks`; AgentPulse does not bypass that trust

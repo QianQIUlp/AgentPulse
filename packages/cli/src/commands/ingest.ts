@@ -8,7 +8,7 @@ import type { AgentPulseClient } from "../daemon-client.js";
 import type { CommandIo, StdinReader } from "./types.js";
 
 const WARNING_PREFIX = "AgentPulse ingest warning:";
-const CODEX_HOOK_NOOP_RESPONSE = '{"continue":true}';
+const CODEX_HOOK_NOOP_RESPONSE = "{}";
 
 function warn(io: CommandIo, message: string): void {
   io.warn(`${WARNING_PREFIX} ${message}`);
@@ -81,7 +81,7 @@ async function ingestCodexHook(
     // Invalid or unreadable hook input must not interrupt Codex.
   }
 
-  io.write(CODEX_HOOK_NOOP_RESPONSE);
+  io.writeRaw(CODEX_HOOK_NOOP_RESPONSE);
   return 0;
 }
 

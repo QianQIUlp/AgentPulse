@@ -52,12 +52,13 @@ bounded tool name where useful. It does not read or retain prompts,
 `transcript_path`, tool input, tool response/output, assistant messages, or the
 complete payload.
 
-Every invocation writes the no-op JSON `{"continue":true}` to stdout and exits
-zero, including invalid JSON, unsupported events, and daemon delivery failures.
-Codex hook ingest writes nothing to stderr by default. The response contains no
-additional context, system message, permission decision, updated input,
-suppression, blocking, or other behavior-changing fields, so AgentPulse remains
-observation-only.
+Every invocation writes the empty no-op JSON `{}` to stdout and exits zero,
+including invalid JSON, unsupported events, and daemon delivery failures. This
+satisfies Codex hook JSON parsing without changing Codex behavior. Codex hook
+ingest writes nothing to stderr by default. The response does not contain
+`continue`, `stopReason`, `systemMessage`, `suppressOutput`, `decision`,
+`permissionDecision`, `additionalContext`, `updatedInput`, or
+`updatedPermissions`, so AgentPulse remains observation-only.
 
 ## Verify
 

@@ -122,12 +122,12 @@ printf '%s' '{"session_id":"standalone-codex-hook","cwd":"/tmp/demo","hook_event
   | run_binary ingest codex-hook >"$WORK/codex-hook.stdout" 2>"$WORK/codex-hook.stderr"
 test ! -s "$WORK/codex-hook.stderr"
 "$NODE" -e '
-  const output = require("node:fs").readFileSync(process.argv[1], "utf8");
-  const parsed = JSON.parse(output);
+  const output = require("node:fs").readFileSync(process.argv[1]);
+  const parsed = JSON.parse(output.toString("utf8"));
   if (
-    parsed.continue !== true ||
-    Object.keys(parsed).length !== 1 ||
-    output.includes("must-not-leak")
+    !output.equals(Buffer.from("{}")) ||
+    Object.keys(parsed).length !== 0 ||
+    output.includes(Buffer.from("must-not-leak"))
   ) {
     process.exit(1);
   }

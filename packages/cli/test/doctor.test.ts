@@ -11,6 +11,7 @@ function captureIo() {
   const warnings: string[] = [];
   const io: CommandIo = {
     write: (message) => output.push(message),
+    writeRaw: (message) => output.push(message),
     warn: (message) => warnings.push(message),
   };
   return { io, output, warnings };

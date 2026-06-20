@@ -22,6 +22,7 @@ function captureIo() {
   const warnings: string[] = [];
   const io: CommandIo = {
     write: (message) => output.push(message),
+    writeRaw: (message) => output.push(message),
     warn: (message) => warnings.push(message),
   };
   return { io, output, warnings };
@@ -53,8 +54,16 @@ function setupRuntime(overrides: Partial<SetupRuntime> = {}): SetupRuntime {
 }
 
 function expectCodexHookNoop(capture: ReturnType<typeof captureIo>): void {
-  expect(capture.output).toEqual(['{"continue":true}']);
-  expect(JSON.parse(capture.output[0] ?? "")).toEqual({ continue: true });
+  expect(capture.output).toEqual(["{}"]);
+  const raw = capture.output[0] ?? "";
+  const normalized = raw.endsWith("\r\n")
+    ? raw.slice(0, -2)
+    : raw.endsWith("\n")
+      ? raw.slice(0, -1)
+      : raw;
+  const parsed = JSON.parse(normalized) as Record<string, unknown>;
+  expect(parsed).toEqual({});
+  expect(Object.keys(parsed)).toHaveLength(0);
   expect(capture.warnings).toEqual([]);
 }
 
@@ -130,72 +139,52 @@ describe("platform ingest commands", () => {
     expect(target.events[0]?.sessionId).toBe("codex-stdin");
   });
 
-  it("returns valid no-op JSON for a successful Codex Stop hook", async () => {
-    const capture = captureIo();
-    const target = captureClient();
+  it.each([
+    ["Stop", "completed", undefined],
+    ["UserPromptSubmit", "running", undefined],
+    ["PreToolUse", "using_tool", "Using tool: Bash"],
+    ["PermissionRequest", "waiting_permission", undefined],
+  ] as const)(
+    "returns empty no-op JSON for a successful %s hook",
+    async (hookEventName, status, message) => {
+      const capture = captureIo();
+      const target = captureClient();
 
-    const code = await executeIngestCommand(
-      ["codex-hook"],
-      target.client,
-      capture.io,
-      async () =>
-        JSON.stringify({
-          session_id: "codex-hook-session",
-          cwd: "/tmp/demo",
-          hook_event_name: "Stop",
-          prompt: "secret prompt",
-          tool_input: { command: "secret command" },
-          tool_response: "secret response",
-          transcript_path: "/tmp/secret-transcript",
-        }),
-    );
+      const code = await executeIngestCommand(
+        ["codex-hook"],
+        target.client,
+        capture.io,
+        async () =>
+          JSON.stringify({
+            session_id: `codex-${hookEventName}`,
+            cwd: "/tmp/demo",
+            hook_event_name: hookEventName,
+            tool_name: "Bash",
+            prompt: "secret prompt",
+            tool_input: { command: "secret command" },
+            tool_response: "secret response",
+            transcript_path: "/tmp/secret-transcript",
+            rawEvent: { secret: true },
+          }),
+      );
 
-    expect(code).toBe(0);
-    expect(target.events).toEqual([
-      {
-        source: "codex",
-        surface: "cli",
-        status: "completed",
-        title: "Stop",
-        sessionId: "codex-hook-session",
-        projectPath: "/tmp/demo",
-      },
-    ]);
-    expect(JSON.stringify(target.events)).not.toContain("secret");
-    expect(JSON.stringify(capture)).not.toContain("secret");
-    expectCodexHookNoop(capture);
-  });
-
-  it("returns valid no-op JSON for a successful UserPromptSubmit hook", async () => {
-    const capture = captureIo();
-    const target = captureClient();
-
-    const code = await executeIngestCommand(
-      ["codex-hook"],
-      target.client,
-      capture.io,
-      async () =>
-        JSON.stringify({
-          session_id: "codex-prompt-session",
-          hook_event_name: "UserPromptSubmit",
-          prompt: "must not become context",
-        }),
-    );
-
-    expect(code).toBe(0);
-    expect(target.events).toEqual([
-      expect.objectContaining({
-        source: "codex",
-        status: "running",
-        title: "UserPromptSubmit",
-        sessionId: "codex-prompt-session",
-      }),
-    ]);
-    expect(JSON.stringify(target.events)).not.toContain(
-      "must not become context",
-    );
-    expectCodexHookNoop(capture);
-  });
+      expect(code).toBe(0);
+      expect(target.events).toEqual([
+        {
+          source: "codex",
+          surface: "cli",
+          status,
+          title: hookEventName,
+          sessionId: `codex-${hookEventName}`,
+          projectPath: "/tmp/demo",
+          ...(message ? { message } : {}),
+        },
+      ]);
+      expect(JSON.stringify(target.events)).not.toContain("secret");
+      expect(JSON.stringify(capture)).not.toContain("secret");
+      expectCodexHookNoop(capture);
+    },
+  );
 
   it("warns and returns zero for ignored or invalid input", async () => {
     const capture = captureIo();

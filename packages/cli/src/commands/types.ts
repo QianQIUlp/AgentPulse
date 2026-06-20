@@ -1,5 +1,6 @@
 export interface CommandIo {
   write(message: string): void;
+  writeRaw(message: string): void;
   warn(message: string): void;
 }
 
@@ -7,6 +8,9 @@ export type StdinReader = () => Promise<string>;
 
 export const consoleIo: CommandIo = {
   write: console.log,
+  writeRaw: (message) => {
+    process.stdout.write(message);
+  },
   warn: console.error,
 };
 

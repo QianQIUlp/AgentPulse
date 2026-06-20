@@ -65,11 +65,13 @@ function Invoke-AgentPulse {
   $process = Start-Process @start
   $stdoutValue = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { $null }
   $stderrValue = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { $null }
+  $stdoutBytes = if (Test-Path $stdoutPath) { [System.IO.File]::ReadAllBytes($stdoutPath) } else { [byte[]]@() }
   $stdoutText = [string](Convert-StreamToText -Value $stdoutValue)
   $stderrText = [string](Convert-StreamToText -Value $stderrValue)
   $result = [pscustomobject]@{
     ExitCode = $process.ExitCode
     Stdout = [string]$stdoutText
+    StdoutBytes = [byte[]]$stdoutBytes
     Stderr = [string]$stderrText
   }
   if (-not $AllowFailure -and $result.ExitCode -ne 0) {
@@ -377,10 +379,12 @@ try {
   $hookResponse = $hookStdout | ConvertFrom-Json
   $hookResponseProperties = @($hookResponse.PSObject.Properties)
   if ($hookStderr.Length -ne 0 -or
+      $hookStdout -cne "{}" -or
+      $hook.StdoutBytes.Count -ne 2 -or
+      $hook.StdoutBytes[0] -ne 0x7B -or
+      $hook.StdoutBytes[1] -ne 0x7D -or
       $hookStdout.Contains("must-not-leak") -or
-      $hookResponseProperties.Count -ne 1 -or
-      $hookResponseProperties[0].Name -cne "continue" -or
-      $hookResponse.continue -ne $true) {
+      $hookResponseProperties.Count -ne 0) {
     throw "Codex hook ingest did not return the expected no-op JSON."
   }
 
