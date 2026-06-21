@@ -10,6 +10,17 @@ setup-first diagnostic page.
 agentpulse daemon --dashboard
 ```
 
+Prompt-derived task titles are disabled by default. To opt in locally:
+
+```bash
+agentpulse daemon --dashboard --dashboard-task-titles prompt-preview
+```
+
+This mode reads the documented `UserPromptSubmit.prompt` field from Claude Code
+and Codex hooks only long enough to create a whitespace-normalized preview of
+at most 60 Unicode code points. The complete prompt is not emitted, stored,
+logged, forwarded, or returned by the dashboard API.
+
 The command prints the dashboard URL but does not open a browser automatically.
 The default is:
 
@@ -95,6 +106,10 @@ The browser requests `/dashboard/api` every two seconds and also provides a
 manual refresh button. This is ordinary HTTP polling. AgentPulse does not use
 SSE or WebSocket.
 
+Hook ingest may request `/dashboard/capabilities` to discover whether local
+prompt-preview task titles are enabled. The route is read-only, dashboard-only,
+and returns `Cache-Control: no-store`.
+
 ## Dashboard API
 
 Each dashboard session retains its normalized allowlisted fields and adds
@@ -142,10 +157,17 @@ The attention mapping and future floating-mode direction are documented in
 - API sessions are explicitly serialized from normalized AgentPulse fields.
 - Task titles never inspect event labels, arbitrary messages, command bodies,
   or unallowlisted platform fields.
+- Prompt-preview task titles are generated only when the daemon starts with
+  `--dashboard-task-titles prompt-preview`. The preview collapses whitespace,
+  is capped at 60 Unicode code points, and replaces the current task title on a
+  later `UserPromptSubmit`.
 - Cards use `activityLabel` rather than rendering arbitrary `lastMessage` or
   error text as the primary session description.
 - Complete platform payloads, prompts, transcripts, raw events, and tool
   input/output, including Codex input messages, are not included.
+- Hook ingest discovers the opt-in mode from the same daemon host and port used
+  for event delivery. Capability lookup times out after 200ms and fails closed
+  to disabled without interrupting the host workflow.
 - There is no login because the dashboard is forcibly restricted to loopback.
 
 AgentPulse still accepts local event submissions through the daemon API. Do not
@@ -168,3 +190,6 @@ Desktop/tray integration remains deferred to a later experimental PR. The
 dashboard does not add persistence, dashboard mutation APIs, SSE/WebSocket,
 automatic config mutation, Electron, Tauri, tray integration, installers, or
 release automation.
+
+Existing Claude Code and Codex hook snippets do not need regeneration as long
+as they invoke the updated AgentPulse binary or CLI.

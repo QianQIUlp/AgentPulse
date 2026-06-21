@@ -87,10 +87,14 @@ describe("daemon HTTP server", () => {
     const healthResponse = await fetch(`${daemon.url}/health`);
     const dashboardResponse = await fetch(`${daemon.url}/dashboard`);
     const dashboardApiResponse = await fetch(`${daemon.url}/dashboard/api`);
+    const dashboardCapabilitiesResponse = await fetch(
+      `${daemon.url}/dashboard/capabilities`,
+    );
 
     expect(healthResponse.status).toBe(404);
     expect(dashboardResponse.status).toBe(404);
     expect(dashboardApiResponse.status).toBe(404);
+    expect(dashboardCapabilitiesResponse.status).toBe(404);
   });
 
   it("serves dashboard routes only when enabled with no-store responses", async () => {
@@ -100,6 +104,7 @@ describe("daemon HTTP server", () => {
       {
         dashboard: {
           notifier: "none",
+          taskTitleMode: "off",
           setup: {
             claudeCode: '{"hooks":{"Stop":[]}}',
             codex: 'notify = ["agentpulse", "ingest", "codex"]',
@@ -127,11 +132,13 @@ describe("daemon HTTP server", () => {
     const stylesheet = await fetch(`${instance.url}/dashboard/styles.css`);
     const script = await fetch(`${instance.url}/dashboard/app.js`);
     const api = await fetch(`${instance.url}/dashboard/api`);
+    const capabilities = await fetch(`${instance.url}/dashboard/capabilities`);
     const pageBody = await page.text();
     const stylesheetBody = await stylesheet.text();
     const scriptBody = await script.text();
     const body = await api.text();
     const parsed = JSON.parse(body) as DashboardApiResponse;
+    const parsedCapabilities = await capabilities.json();
 
     expect(page.status).toBe(200);
     expect(page.headers.get("cache-control")).toBe("no-store");
@@ -209,6 +216,41 @@ describe("daemon HTTP server", () => {
       antigravityProbe:
         "printf '%s\\n' '{}' | agentpulse ingest antigravity-probe --event manual.probe --surface desktop",
     });
+    expect(capabilities.status).toBe(200);
+    expect(capabilities.headers.get("cache-control")).toBe("no-store");
+    expect(capabilities.headers.get("content-type")).toContain(
+      "application/json",
+    );
+    expect(parsedCapabilities).toEqual({ taskTitleMode: "off" });
+  });
+
+  it("reports prompt-preview capability only when explicitly enabled", async () => {
+    instance = await startDaemon(
+      { host: "127.0.0.1", port: 0 },
+      new AgentPulseService({ notifier: new SilentNotifier() }),
+      {
+        dashboard: {
+          notifier: "none",
+          taskTitleMode: "prompt-preview",
+          setup: {
+            claudeCode: "claude",
+            codex: "codex",
+            codexHooks: "codex-hooks",
+            openCode: "opencode",
+            antigravityProbe: "antigravity-probe",
+          },
+          doctor: async () => ({ ok: true, checks: [] }),
+        },
+      },
+    );
+
+    const response = await fetch(`${instance.url}/dashboard/capabilities`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({
+      taskTitleMode: "prompt-preview",
+    });
   });
 
   it("exposes only normalized session fields through the dashboard API", async () => {
@@ -218,6 +260,7 @@ describe("daemon HTTP server", () => {
       {
         dashboard: {
           notifier: "none",
+          taskTitleMode: "off",
           setup: {
             claudeCode: "claude",
             codex: "codex",
@@ -336,6 +379,7 @@ describe("daemon HTTP server", () => {
         {
           dashboard: {
             notifier: "none",
+            taskTitleMode: "off",
             setup: {
               claudeCode: "claude",
               codex: "codex",
@@ -361,6 +405,7 @@ describe("daemon HTTP server", () => {
       {
         dashboard: {
           notifier: "none",
+          taskTitleMode: "off",
           setup: {
             claudeCode: "claude",
             codex: "codex",

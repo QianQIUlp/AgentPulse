@@ -40,7 +40,7 @@ describe("SessionStore", () => {
     expect(failed.completedAt).toBe(200);
   });
 
-  it("retains task titles and keeps event titles scoped to the latest event", () => {
+  it("updates task titles on new requests and retains them across later events", () => {
     const store = new SessionStore();
     const titled = normalizeAgentEvent({
       source: "custom",
@@ -58,12 +58,33 @@ describe("SessionStore", () => {
       status: "completed",
       timestamp: 200,
     });
+    const retitled = normalizeAgentEvent({
+      source: "custom",
+      surface: "manual",
+      sessionId: "session-1",
+      status: "running",
+      taskTitle: "Create a temp file",
+      title: "UserPromptSubmit",
+      timestamp: 300,
+    });
+    const stopped = normalizeAgentEvent({
+      source: "custom",
+      surface: "manual",
+      sessionId: "session-1",
+      status: "completed",
+      title: "Stop",
+      timestamp: 400,
+    });
 
     store.apply(titled);
-    const session = store.apply(completed);
+    const completedSession = store.apply(completed);
+    store.apply(retitled);
+    const stoppedSession = store.apply(stopped);
 
-    expect(session.taskTitle).toBe("Review dashboard output");
-    expect(session).not.toHaveProperty("title");
+    expect(completedSession.taskTitle).toBe("Review dashboard output");
+    expect(completedSession).not.toHaveProperty("title");
+    expect(stoppedSession.taskTitle).toBe("Create a temp file");
+    expect(stoppedSession.title).toBe("Stop");
   });
 
   it("ignores events older than the latest session event", () => {

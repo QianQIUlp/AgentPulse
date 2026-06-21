@@ -9,6 +9,12 @@ import type { ServerResponse } from "node:http";
 
 import type { AgentPulseService } from "./service.js";
 
+export type DashboardTaskTitleMode = "off" | "prompt-preview";
+
+export interface DashboardCapabilities {
+  taskTitleMode: DashboardTaskTitleMode;
+}
+
 export interface DashboardDoctorCheck {
   id: string;
   status: "ok" | "warning" | "error" | "skipped";
@@ -23,6 +29,7 @@ export interface DashboardDoctorReport {
 
 export interface DashboardOptions {
   notifier: NotifierKind;
+  taskTitleMode: DashboardTaskTitleMode;
   setup: {
     claudeCode: string;
     codex: string;
@@ -1348,6 +1355,14 @@ function sendDashboardContent(
   response.end(body);
 }
 
+function sendDashboardJson(response: ServerResponse, body: unknown): void {
+  response.writeHead(200, {
+    "cache-control": "no-store",
+    "content-type": "application/json; charset=utf-8",
+  });
+  response.end(JSON.stringify(body));
+}
+
 export function serializeDashboardSession(
   session: AgentSession,
   now: number,
@@ -1440,6 +1455,14 @@ export async function handleDashboardRequest(
     return true;
   }
 
+  if (pathname === "/dashboard/capabilities") {
+    const body: DashboardCapabilities = {
+      taskTitleMode: options.taskTitleMode,
+    };
+    sendDashboardJson(response, body);
+    return true;
+  }
+
   if (pathname === "/dashboard/api") {
     const now = Date.now();
     const body: DashboardApiResponse = {
@@ -1455,11 +1478,7 @@ export async function handleDashboardRequest(
       setup: options.setup,
       doctor: await doctorReport(options),
     };
-    response.writeHead(200, {
-      "cache-control": "no-store",
-      "content-type": "application/json; charset=utf-8",
-    });
-    response.end(JSON.stringify(body));
+    sendDashboardJson(response, body);
     return true;
   }
 

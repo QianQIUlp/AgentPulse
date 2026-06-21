@@ -16,10 +16,12 @@ export type {
   DashboardActionKind,
   DashboardApiResponse,
   DashboardAttention,
+  DashboardCapabilities,
   DashboardDoctorCheck,
   DashboardDoctorReport,
   DashboardOptions,
   DashboardSession,
+  DashboardTaskTitleMode,
 } from "./dashboard.js";
 export {
   getDashboardActivityLabel,
