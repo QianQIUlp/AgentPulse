@@ -86,6 +86,16 @@ importers:
         specifier: workspace:^
         version: link:../shared
 
+  packages/companion:
+    dependencies:
+      "@agentpulse/shared":
+        specifier: workspace:^
+        version: link:../shared
+    devDependencies:
+      electron:
+        specifier: 42.4.1
+        version: 42.4.1
+
   packages/core:
     dependencies:
       zod:
@@ -123,6 +133,20 @@ importers:
   packages/shared: {}
 
 packages:
+  "@electron-internal/extract-zip@1.0.3":
+    resolution:
+      {
+        integrity: sha512-OjKpjB7gohtEjZiq6nDx1egqjZJhGPN1iFOIED+NFhB/MMkXw/XRcHjh1DGXKT5z2W9eW7Jy2UKU3gpjvusFTQ==,
+      }
+    engines: { node: ">=22.12.0" }
+
+  "@electron/get@5.0.0":
+    resolution:
+      {
+        integrity: sha512-pjoBpru1KdEtcExBnuHAP1cAc/5faoedw0hzJkL3o4/IJp7HNF1+fbrdxT3gMYRX2oJfvnA/WXeCTVQpYYxyJA==,
+      }
+    engines: { node: ">=22.12.0" }
+
   "@esbuild/aix-ppc64@0.27.7":
     resolution:
       {
@@ -593,6 +617,12 @@ packages:
         integrity: sha512-VMeFBSCKQKmm2swI2kW51SFusDqekC6q9trBCvJ/JliDchFSuoYYKN7yVNjPthP1HKZcx3U1gI/wTcEBjEFKTA==,
       }
 
+  "@types/node@24.13.2":
+    resolution:
+      {
+        integrity: sha512-fRa09kZTgu8o71KFcDjUFuc7F+dEbZYZmkI0mg5YBTRs0yMKjYHsq/c0urDKeDb+D5qVgXOdFcuu+DZPKOITwA==,
+      }
+
   "@vitest/expect@3.2.6":
     resolution:
       {
@@ -697,6 +727,21 @@ packages:
       }
     engines: { node: ">=6" }
 
+  electron@42.4.1:
+    resolution:
+      {
+        integrity: sha512-8CYHJP5O4wFO+ycoJR98yy907MmPeo+vWXrzjxmGGgRNKqv8pOjjm+wphO0CCgQJnBU7+QUPSJS4QXhbKrO50w==,
+      }
+    engines: { node: ">= 22.12.0" }
+    hasBin: true
+
+  env-paths@3.0.0:
+    resolution:
+      {
+        integrity: sha512-dtJUTepzMW3Lm/NPxRf3wP4642UWhjL2sQxc+ym2YMj1m/H2zDNQOlezafzkHwn6sMstjHTwG6iQQsctDW/b1A==,
+      }
+    engines: { node: ^12.20.0 || ^14.13.1 || >=16.0.0 }
+
   es-module-lexer@1.7.0:
     resolution:
       {
@@ -743,6 +788,12 @@ packages:
       }
     engines: { node: ^8.16.0 || ^10.6.0 || >=11.0.0 }
     os: [darwin]
+
+  graceful-fs@4.2.11:
+    resolution:
+      {
+        integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==,
+      }
 
   growly@1.3.0:
     resolution:
@@ -858,6 +909,13 @@ packages:
     engines: { node: ">=14" }
     hasBin: true
 
+  progress@2.0.3:
+    resolution:
+      {
+        integrity: sha512-7PiHtLll5LdnKIMw100I+8xJXR5gW2QwWYkT6iJva0bXitZKa/XMrSbdmg3r2Xnaidz9Qumd0VPaMrZlF9V9sA==,
+      }
+    engines: { node: ">=0.4.0" }
+
   rollup@4.62.0:
     resolution:
       {
@@ -910,6 +968,13 @@ packages:
       {
         integrity: sha512-8r3mkIM/2+PpjHoOtiAW8Rg3jJLHaV7xPwG+YRGrv6FP0wwk/toTpATxWYOW0BKdWwl82VT2tFYi5DlROa0Mxg==,
       }
+
+  sumchecker@3.0.1:
+    resolution:
+      {
+        integrity: sha512-MvjXzkz/BOfyVDkG0oFOtBxHX2u3gKbMHIF/dXblZsgD3BWOFLmHovIpZY7BykJdAjcqRCBi1WYBNdEC9yI7vg==,
+      }
+    engines: { node: ">= 8.0" }
 
   tinybench@2.9.0:
     resolution:
@@ -964,6 +1029,19 @@ packages:
       {
         integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==,
       }
+
+  undici-types@7.18.2:
+    resolution:
+      {
+        integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==,
+      }
+
+  undici@7.28.0:
+    resolution:
+      {
+        integrity: sha512-cRZYrTDwWznlnRiPjggAGxZXanty6M8RV1ff8Wm4LWXBp7/IG8v5DnOm74DtUBp9OONpK75YlPnIjQqX0dBDtA==,
+      }
+    engines: { node: ">=20.18.1" }
 
   uuid@8.3.2:
     resolution:
@@ -1078,6 +1156,21 @@ packages:
       }
 
 snapshots:
+  "@electron-internal/extract-zip@1.0.3": {}
+
+  "@electron/get@5.0.0":
+    dependencies:
+      debug: 4.4.3
+      env-paths: 3.0.0
+      graceful-fs: 4.2.11
+      progress: 2.0.3
+      semver: 7.8.4
+      sumchecker: 3.0.1
+    optionalDependencies:
+      undici: 7.28.0
+    transitivePeerDependencies:
+      - supports-color
+
   "@esbuild/aix-ppc64@0.27.7":
     optional: true
 
@@ -1250,6 +1343,10 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  "@types/node@24.13.2":
+    dependencies:
+      undici-types: 7.18.2
+
   "@vitest/expect@3.2.6":
     dependencies:
       "@types/chai": 5.2.3
@@ -1314,6 +1411,16 @@ snapshots:
 
   deep-eql@5.0.2: {}
 
+  electron@42.4.1:
+    dependencies:
+      "@electron-internal/extract-zip": 1.0.3
+      "@electron/get": 5.0.0
+      "@types/node": 24.13.2
+    transitivePeerDependencies:
+      - supports-color
+
+  env-paths@3.0.0: {}
+
   es-module-lexer@1.7.0: {}
 
   esbuild@0.27.7:
@@ -1357,6 +1464,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  graceful-fs@4.2.11: {}
 
   growly@1.3.0: {}
 
@@ -1409,6 +1518,8 @@ snapshots:
 
   prettier@3.8.4: {}
 
+  progress@2.0.3: {}
+
   rollup@4.62.0:
     dependencies:
       "@types/estree": 1.0.9
@@ -1456,6 +1567,12 @@ snapshots:
     dependencies:
       js-tokens: 9.0.1
 
+  sumchecker@3.0.1:
+    dependencies:
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
   tinybench@2.9.0: {}
 
   tinyexec@0.3.2: {}
@@ -1474,6 +1591,11 @@ snapshots:
   typescript@5.9.3: {}
 
   undici-types@6.21.0: {}
+
+  undici-types@7.18.2: {}
+
+  undici@7.28.0:
+    optional: true
 
   uuid@8.3.2: {}
 

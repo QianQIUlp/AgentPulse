@@ -280,11 +280,13 @@ context, updated tool input, or turn-control output.
 ## v0.3.0 Preview Scope Boundaries
 
 The v0.3.0 preview does not promote OpenCode to verified support, Codex Desktop
-beyond experimental, or Antigravity beyond research-only. It also does not
-include Cursor adapters, a VS Code extension, Tauri, Electron, a desktop tray,
-persistence, SSE/WebSocket, session garbage collection, hardware output,
-automatic user-config mutation, OCR, screen scraping, window watching, or
-private API reverse engineering.
+beyond experimental, or Antigravity beyond research-only. The repository now
+contains a development-only Electron companion prototype, but no desktop
+installer, autostart behavior, or companion release artifact. It also does not
+include Cursor adapters, a VS Code extension, Tauri, persistence,
+SSE/WebSocket, session garbage collection, hardware output, automatic
+user-config mutation, OCR, screen scraping, window watching, or private API
+reverse engineering.
 
 ## License
 

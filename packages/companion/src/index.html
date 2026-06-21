@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgentPulse Companion</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./renderer.js" defer></script>
+  </head>
+  <body data-state="offline">
+    <main class="surface">
+      <header class="compact-header drag-region">
+        <span class="status-orb" aria-hidden="true"></span>
+        <div class="summary-copy">
+          <p class="eyebrow">AgentPulse</p>
+          <h1 id="summary">Daemon offline</h1>
+          <p id="primary-session">Checking local status</p>
+        </div>
+        <div class="window-controls no-drag">
+          <button
+            id="expand"
+            type="button"
+            aria-label="Expand"
+            aria-expanded="false"
+          >
+            +
+          </button>
+          <button id="hide" type="button" aria-label="Hide">—</button>
+        </div>
+      </header>
+
+      <section class="counts" aria-label="Session counts">
+        <p><strong id="running-count">0</strong> running</p>
+        <p><strong id="action-count">0</strong> action</p>
+        <p><strong id="failed-count">0</strong> failed</p>
+      </section>
+
+      <section class="expanded-only expanded-panel">
+        <p id="diagnostic" class="global-diagnostic" hidden></p>
+        <div class="expanded-toolbar no-drag">
+          <span>Current sessions</span>
+          <div>
+            <button id="always-on-top" type="button" aria-pressed="true">
+              Pinned
+            </button>
+            <button id="open-dashboard" type="button">Details</button>
+            <button id="quit" type="button">Quit</button>
+          </div>
+        </div>
+        <p id="empty-sessions" class="empty-sessions">No sessions observed.</p>
+        <div id="session-list" class="session-list"></div>
+      </section>
+    </main>
+  </body>
+</html>

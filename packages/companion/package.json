@@ -1,0 +1,18 @@
+{
+  "name": "@agentpulse/companion",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -b && pnpm copy:assets",
+    "copy:assets": "node scripts/copy-assets.mjs",
+    "dev": "pnpm build && electron dist/main.js"
+  },
+  "dependencies": {
+    "@agentpulse/shared": "workspace:^"
+  },
+  "devDependencies": {
+    "electron": "42.4.1"
+  }
+}

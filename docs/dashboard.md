@@ -186,10 +186,11 @@ The dashboard reflects only the currently running daemon:
 Closing the daemon removes all in-memory sessions and makes the dashboard
 unavailable.
 
-Desktop/tray integration remains deferred to a later experimental PR. The
-dashboard does not add persistence, dashboard mutation APIs, SSE/WebSocket,
-automatic config mutation, Electron, Tauri, tray integration, installers, or
-release automation.
+The separate experimental Electron companion polls this dashboard API and can
+open the browser dashboard only after an explicit user action. The dashboard
+itself still does not add persistence, mutation APIs, SSE/WebSocket, automatic
+config mutation, installers, or release automation. See
+[Multi-Agent Companion Surface](companion-surface.md).
 
 Existing Claude Code and Codex hook snippets do not need regeneration as long
 as they invoke the updated AgentPulse binary or CLI.

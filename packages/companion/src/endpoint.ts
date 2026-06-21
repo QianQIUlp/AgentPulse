@@ -1,0 +1,59 @@
+import { DEFAULT_DAEMON_HOST, DEFAULT_DAEMON_PORT } from "@agentpulse/shared";
+
+export interface CompanionEndpoint {
+  host: string;
+  port: number;
+  baseUrl: string;
+  dashboardApiUrl: string;
+  dashboardUrl: string;
+  issues: string[];
+}
+
+function isLoopbackHost(host: string): boolean {
+  return host === "127.0.0.1" || host === "::1";
+}
+
+function formatHost(host: string): string {
+  return host.includes(":") ? `[${host}]` : host;
+}
+
+export function resolveCompanionEndpoint(
+  env: NodeJS.ProcessEnv = process.env,
+): CompanionEndpoint {
+  const requestedHost = env.AGENTPULSE_HOST;
+  const requestedPort = env.AGENTPULSE_PORT;
+  const issues: string[] = [];
+
+  let host = DEFAULT_DAEMON_HOST;
+  if (requestedHost !== undefined) {
+    if (isLoopbackHost(requestedHost)) {
+      host = requestedHost;
+    } else {
+      issues.push(
+        `Ignoring non-loopback AGENTPULSE_HOST=${requestedHost}; using ${DEFAULT_DAEMON_HOST}.`,
+      );
+    }
+  }
+
+  let port = DEFAULT_DAEMON_PORT;
+  if (requestedPort !== undefined) {
+    const parsed = Number(requestedPort);
+    if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 65_535) {
+      port = parsed;
+    } else {
+      issues.push(
+        `Ignoring invalid AGENTPULSE_PORT=${requestedPort}; using ${DEFAULT_DAEMON_PORT}.`,
+      );
+    }
+  }
+
+  const baseUrl = `http://${formatHost(host)}:${port}`;
+  return {
+    host,
+    port,
+    baseUrl,
+    dashboardApiUrl: `${baseUrl}/dashboard/api`,
+    dashboardUrl: `${baseUrl}/dashboard`,
+    issues,
+  };
+}

@@ -8,9 +8,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && pnpm --filter @agentpulse/companion copy:assets",
     "build:standalone": "pnpm build && node scripts/build-standalone.mjs",
     "clean": "tsc -b --clean",
+    "companion:dev": "pnpm --filter @agentpulse/companion dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "smoke:standalone": "bash scripts/smoke-standalone.sh",

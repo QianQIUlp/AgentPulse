@@ -3,4 +3,5 @@ packages:
   - packages/adapters/*
 
 onlyBuiltDependencies:
+  - electron
   - esbuild
