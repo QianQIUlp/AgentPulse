@@ -1,7 +1,8 @@
 # Browser Dashboard
 
-The v0.2.3 dashboard is an optional, local, read-only view of the current daemon
-process.
+The dashboard is an optional, local, read-only view of the current daemon
+process. The v0.3 design is a status-first daily-use surface rather than a
+setup-first diagnostic page.
 
 ## Start
 
@@ -30,17 +31,74 @@ binds to `127.0.0.1`.
 
 ## Displayed Information
 
-The page shows:
+### Overview Mode
+
+The default `/dashboard` page shows:
 
 - daemon health, start time, and process uptime;
 - selected notifier mode;
-- current normalized sessions held in memory;
-- mergeable Claude Code, Codex notify, and Codex hooks setup snippets;
+- an **Action needed** section for actionable and error sessions;
+- status cards for all normalized sessions held in memory;
+- five setup cards: Claude Code, Codex notify, Codex hooks, OpenCode, and
+  Antigravity probe;
 - basic read-only doctor checks.
+
+Action-needed cards place waiting input or permission states before failures and
+rate limits, then order each group by the newest event. The complete status
+overview retains the daemon's most-recent-first ordering.
+
+Setup snippets and doctor checks remain available below the primary status
+view. The Antigravity card is explicitly `research-only`: it prints a fixed,
+minimal manual probe command for local investigation and does not make
+Antigravity a supported setup platform or integration.
+
+### Focus Mode
+
+Select one current session with:
+
+```text
+http://127.0.0.1:3768/dashboard?focus=<sessionKey>
+```
+
+Focus Mode shows one expanded card and a link back to the overview. A key that
+is not present in the current API response produces a focused-session-not-found
+state. There is no historical lookup or stale-session recovery.
 
 The browser requests `/dashboard/api` every two seconds and also provides a
 manual refresh button. This is ordinary HTTP polling. AgentPulse does not use
 SSE or WebSocket.
+
+## Dashboard API
+
+Each dashboard session retains its normalized allowlisted fields and adds
+presentation-only derived fields:
+
+- `displayName`;
+- `displayWorkspace`;
+- `shortSessionKey`, the final eight characters of the AgentPulse-owned
+  `sessionKey`, or the complete key when shorter;
+- `identityLine`, formatted as
+  `<workspace> · <surface label> · #<shortSessionKey>`;
+- `durationMs`;
+- `lastEventAgeMs`, clamped to zero when the event timestamp is in the future;
+- `isStale`;
+- optional `staleReason`, present only when the session is considered stale;
+- `attention`, one of `passive`, `done`, `action`, or `error`;
+- optional `actionKind`, either `input` or `permission`.
+
+Surface labels are `CLI`, `IDE extension`, `Desktop`, `Cloud`, `Manual`, and
+`Unknown`.
+
+Staleness is a dashboard presentation heuristic based on time since the latest
+event. `running` and `using_tool` become stale at five minutes,
+`waiting_input` and `waiting_permission` at ten minutes, and `unknown` at two
+minutes. Thresholds are inclusive. Completed, failed, idle, and rate-limited
+sessions are never marked stale. This heuristic does not change status or
+attention, recover sessions, inspect processes, or monitor whether an agent is
+still running.
+
+The attention mapping and future Compact/Floating Mode direction are documented
+in [Desktop Presence Product Design](product/desktop-presence.md).
 
 ## Security and Data Boundaries
 
@@ -70,3 +128,5 @@ The dashboard reflects only the currently running daemon:
 
 Closing the daemon removes all in-memory sessions and makes the dashboard
 unavailable.
+
+Desktop/tray integration remains deferred to a later experimental PR.

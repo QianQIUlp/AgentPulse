@@ -6,6 +6,7 @@ import {
   AgentPulseService,
   formatDaemonUrl,
   startDaemon,
+  type DashboardApiResponse,
   type DaemonInstance,
 } from "../src/index.js";
 
@@ -104,6 +105,9 @@ describe("daemon HTTP server", () => {
             codex: 'notify = ["agentpulse", "ingest", "codex"]',
             codexHooks:
               "Codex hooks setup unavailable.\nInstall AgentPulse into a simple no-space path.",
+            openCode: "export const AgentPulsePlugin = async () => ({});",
+            antigravityProbe:
+              "printf '%s\\n' '{}' | agentpulse ingest antigravity-probe --event manual.probe --surface desktop",
           },
           doctor: async () => ({
             ok: true,
@@ -120,18 +124,36 @@ describe("daemon HTTP server", () => {
     );
 
     const page = await fetch(`${instance.url}/dashboard`);
+    const stylesheet = await fetch(`${instance.url}/dashboard/styles.css`);
     const script = await fetch(`${instance.url}/dashboard/app.js`);
     const api = await fetch(`${instance.url}/dashboard/api`);
+    const pageBody = await page.text();
+    const scriptBody = await script.text();
     const body = await api.text();
+    const parsed = JSON.parse(body) as DashboardApiResponse;
 
     expect(page.status).toBe(200);
     expect(page.headers.get("cache-control")).toBe("no-store");
     expect(page.headers.get("content-security-policy")).toContain(
       "default-src 'none'",
     );
+    expect(pageBody).toContain('id="action-needed"');
+    expect(pageBody).toContain('id="setup-opencode"');
+    expect(pageBody).toContain('id="setup-antigravity-probe"');
+    expect(pageBody).toContain("Research-only");
+    expect(pageBody).toMatch(/not a\s+supported AgentPulse integration/u);
+    expect(stylesheet.status).toBe(200);
+    expect(stylesheet.headers.get("cache-control")).toBe("no-store");
     expect(script.status).toBe(200);
     expect(script.headers.get("cache-control")).toBe("no-store");
-    expect(await script.text()).not.toContain("innerHTML");
+    expect(scriptBody).toContain("URLSearchParams");
+    expect(scriptBody).toContain(
+      "workspace.textContent = session.identityLine",
+    );
+    expect(scriptBody).toContain('"Last seen"');
+    expect(scriptBody).toContain("Possibly stale · no event for ");
+    expect(scriptBody).toContain("stale.textContent");
+    expect(scriptBody).not.toContain(".innerHTML");
     expect(api.status).toBe(200);
     expect(api.headers.get("cache-control")).toBe("no-store");
     expect(api.headers.get("content-type")).toContain("application/json");
@@ -139,6 +161,15 @@ describe("daemon HTTP server", () => {
     expect(body).toContain('"status":"ok"');
     expect(body).toContain("Codex hooks setup unavailable");
     expect(body).toContain("simple no-space path");
+    expect(parsed.setup).toEqual({
+      claudeCode: '{"hooks":{"Stop":[]}}',
+      codex: 'notify = ["agentpulse", "ingest", "codex"]',
+      codexHooks:
+        "Codex hooks setup unavailable.\nInstall AgentPulse into a simple no-space path.",
+      openCode: "export const AgentPulsePlugin = async () => ({});",
+      antigravityProbe:
+        "printf '%s\\n' '{}' | agentpulse ingest antigravity-probe --event manual.probe --surface desktop",
+    });
   });
 
   it("exposes only normalized session fields through the dashboard API", async () => {
@@ -152,6 +183,8 @@ describe("daemon HTTP server", () => {
             claudeCode: "claude",
             codex: "codex",
             codexHooks: "codex-hooks",
+            openCode: "opencode",
+            antigravityProbe: "antigravity-probe",
           },
           doctor: async () => ({ ok: true, checks: [] }),
         },
@@ -165,8 +198,9 @@ describe("daemon HTTP server", () => {
         source: "custom",
         surface: "manual",
         sessionId: "dashboard-session",
-        status: "completed",
-        message: "safe summary",
+        projectPath: "/workspace/safe-project",
+        status: "running",
+        timestamp: 1_000,
         rawEvent: {
           prompt: "dashboard-secret-prompt",
           toolInput: "dashboard-secret-tool-input",
@@ -175,11 +209,70 @@ describe("daemon HTTP server", () => {
       }),
     });
 
+    await fetch(`${instance.url}/events`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        source: "custom",
+        surface: "manual",
+        sessionId: "dashboard-session",
+        status: "completed",
+        message: "safe summary",
+        timestamp: 5_000,
+      }),
+    });
+
+    await fetch(`${instance.url}/events`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        source: "custom",
+        surface: "cloud",
+        sessionId: "stale-dashboard-session",
+        workspaceName: "Stale workspace",
+        status: "unknown",
+        timestamp: 1_000,
+      }),
+    });
+
     const response = await fetch(`${instance.url}/dashboard/api`);
     const body = await response.text();
+    const parsed = JSON.parse(body) as {
+      sessions: Array<Record<string, unknown>>;
+    };
 
     expect(body).toContain("dashboard-session");
     expect(body).toContain("safe summary");
+    const completedSession = parsed.sessions.find(
+      (session) => session.sessionId === "dashboard-session",
+    );
+    const staleSession = parsed.sessions.find(
+      (session) => session.sessionId === "stale-dashboard-session",
+    );
+
+    expect(completedSession).toMatchObject({
+      displayName: "Custom",
+      displayWorkspace: "safe-project",
+      durationMs: 4_000,
+      attention: "done",
+      isStale: false,
+    });
+    expect(completedSession?.shortSessionKey).toBe(
+      String(completedSession?.sessionKey).slice(-8),
+    );
+    expect(completedSession?.identityLine).toBe(
+      `safe-project · Manual · #${String(completedSession?.shortSessionKey)}`,
+    );
+    expect(completedSession?.lastEventAgeMs).toEqual(expect.any(Number));
+    expect(completedSession).not.toHaveProperty("staleReason");
+    expect(staleSession).toMatchObject({
+      displayWorkspace: "Stale workspace",
+      identityLine: `Stale workspace · Cloud · #${String(
+        staleSession?.shortSessionKey,
+      )}`,
+      isStale: true,
+      staleReason: "No event for at least 2 minutes.",
+    });
     expect(body).not.toContain("dashboard-secret");
     expect(body).not.toContain("rawEvent");
     expect(body).not.toContain("toolInput");
@@ -198,6 +291,8 @@ describe("daemon HTTP server", () => {
               claudeCode: "claude",
               codex: "codex",
               codexHooks: "codex-hooks",
+              openCode: "opencode",
+              antigravityProbe: "antigravity-probe",
             },
             doctor: async () => ({ ok: true, checks: [] }),
           },
@@ -221,6 +316,8 @@ describe("daemon HTTP server", () => {
             claudeCode: "claude",
             codex: "codex",
             codexHooks: "codex-hooks",
+            openCode: "opencode",
+            antigravityProbe: "antigravity-probe",
           },
           doctor: async () => ({ ok: true, checks: [] }),
         },

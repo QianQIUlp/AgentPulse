@@ -13,10 +13,24 @@ export {
   type DaemonServerOptions,
 } from "./server.js";
 export type {
+  DashboardActionKind,
   DashboardApiResponse,
+  DashboardAttention,
   DashboardDoctorCheck,
   DashboardDoctorReport,
   DashboardOptions,
   DashboardSession,
+} from "./dashboard.js";
+export {
+  getDashboardAttention,
+  getDashboardDurationMs,
+  getDashboardIdentityLine,
+  getDashboardStaleState,
+  getDisplayName,
+  getDisplayWorkspace,
+  getLastEventAgeMs,
+  getShortSessionKey,
+  getSurfaceLabel,
+  serializeDashboardSession,
 } from "./dashboard.js";
 export { AgentPulseService, type IngestResult } from "./service.js";
