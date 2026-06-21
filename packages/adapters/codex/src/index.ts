@@ -8,7 +8,13 @@ export {
 } from "./codex-hook-input.js";
 export { ingestCodexHookJson } from "./ingest-codex-hook.js";
 export { ingestCodexNotifyJson } from "./ingest-codex-notify.js";
-export { CODEX_HOOK_TOOL_NAME_LIMIT, mapCodexHook } from "./map-codex-hook.js";
+export {
+  CODEX_HOOK_EVENT_NAMES,
+  CODEX_HOOK_TOOL_NAME_LIMIT,
+  isCodexHookEventName,
+  mapCodexHook,
+  type CodexHookEventName,
+} from "./map-codex-hook.js";
 export {
   CODEX_MESSAGE_LIMIT,
   mapCodexNotification,

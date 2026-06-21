@@ -9,7 +9,7 @@ $Artifact = "agentpulse-v$Version-windows-x64"
 $Archive = Join-Path $Root "release\$Artifact.zip"
 $Checksum = "$Archive.sha256"
 $Port = if ($env:AGENTPULSE_SMOKE_PORT) { $env:AGENTPULSE_SMOKE_PORT } else { "43768" }
-$Work = Join-Path ([System.IO.Path]::GetTempPath()) "AgentPulse smoke $([guid]::NewGuid())"
+$Work = Join-Path ([System.IO.Path]::GetTempPath()) "AgentPulseSmoke-$([guid]::NewGuid())"
 $Extracted = Join-Path $Work $Artifact
 $Bin = Join-Path $Extracted "agentpulse.exe"
 $HomeDir = Join-Path $Work "home"
@@ -35,6 +35,24 @@ function Convert-StreamToText {
   }
 
   return [string]$Value
+}
+
+function Get-ByteCount {
+  param([object]$Value)
+
+  if ($null -eq $Value) {
+    return 0
+  }
+
+  if ($Value -is [byte[]]) {
+    return $Value.Length
+  }
+
+  if ($Value -is [array]) {
+    return $Value.Count
+  }
+
+  return 1
 }
 
 function Invoke-AgentPulse {
@@ -65,12 +83,16 @@ function Invoke-AgentPulse {
   $process = Start-Process @start
   $stdoutValue = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { $null }
   $stderrValue = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { $null }
+  $stdoutBytes = if (Test-Path $stdoutPath) { [System.IO.File]::ReadAllBytes($stdoutPath) } else { [byte[]]@() }
+  $stderrBytes = if (Test-Path $stderrPath) { [System.IO.File]::ReadAllBytes($stderrPath) } else { [byte[]]@() }
   $stdoutText = [string](Convert-StreamToText -Value $stdoutValue)
   $stderrText = [string](Convert-StreamToText -Value $stderrValue)
   $result = [pscustomobject]@{
     ExitCode = $process.ExitCode
     Stdout = [string]$stdoutText
+    StdoutBytes = [byte[]]$stdoutBytes
     Stderr = [string]$stderrText
+    StderrBytes = [byte[]]$stderrBytes
   }
   if (-not $AllowFailure -and $result.ExitCode -ne 0) {
     throw "agentpulse $($Arguments -join ' ') failed with $($result.ExitCode): $stderrText"
@@ -144,29 +166,30 @@ function ConvertFrom-FirstJsonObject {
   throw "$Description did not contain a complete JSON object. Expected binary path: $Bin"
 }
 
-function Get-StopHookCommand {
+function Get-HookCommand {
   param(
     [object]$Parsed,
+    [string]$EventName,
     [string]$FieldName
   )
 
-  $path = "hooks.Stop[0].hooks[0].$FieldName"
+  $path = "hooks.$EventName[0].hooks[0].$FieldName"
   $hooksProperty = $Parsed.PSObject.Properties["hooks"]
   if ($null -eq $hooksProperty -or $null -eq $hooksProperty.Value) {
     throw "$path missing. Expected binary path: $Bin"
   }
 
-  $stopProperty = $hooksProperty.Value.PSObject.Properties["Stop"]
-  if ($null -eq $stopProperty -or $null -eq $stopProperty.Value) {
+  $eventProperty = $hooksProperty.Value.PSObject.Properties[$EventName]
+  if ($null -eq $eventProperty -or $null -eq $eventProperty.Value) {
     throw "$path missing. Expected binary path: $Bin"
   }
 
-  $stopGroups = @($stopProperty.Value)
-  if ($stopGroups.Count -lt 1 -or $null -eq $stopGroups[0]) {
+  $eventGroups = @($eventProperty.Value)
+  if ($eventGroups.Count -lt 1 -or $null -eq $eventGroups[0]) {
     throw "$path missing. Expected binary path: $Bin"
   }
 
-  $handlersProperty = $stopGroups[0].PSObject.Properties["hooks"]
+  $handlersProperty = $eventGroups[0].PSObject.Properties["hooks"]
   if ($null -eq $handlersProperty -or $null -eq $handlersProperty.Value) {
     throw "$path missing. Expected binary path: $Bin"
   }
@@ -324,7 +347,7 @@ try {
 
   $claude = Invoke-AgentPulse -Arguments @("setup", "claude-code", "--print")
   $claudeSetup = ConvertFrom-FirstJsonObject -Text $claude.Stdout -Description "Claude setup"
-  $claudeCommand = Get-StopHookCommand -Parsed $claudeSetup -FieldName "command"
+  $claudeCommand = Get-HookCommand -Parsed $claudeSetup -EventName "Stop" -FieldName "command"
   Assert-SetupCommand -Command $claudeCommand -Description "Claude setup" -IngestTarget "claude-code"
 
   $codex = Invoke-AgentPulse -Arguments @("setup", "codex", "--print")
@@ -344,8 +367,15 @@ try {
 
   $codexHooks = Invoke-AgentPulse -Arguments @("setup", "codex-hooks", "--print")
   $codexHooksSetup = ConvertFrom-FirstJsonObject -Text $codexHooks.Stdout -Description "Codex hooks setup"
-  $codexHooksCommand = Get-StopHookCommand -Parsed $codexHooksSetup -FieldName "commandWindows"
-  Assert-SetupCommand -Command $codexHooksCommand -Description "Codex hooks setup" -IngestTarget "codex-hook"
+  foreach ($hookEventName in @("Stop", "PreToolUse")) {
+    $codexHooksCommand = Get-HookCommand -Parsed $codexHooksSetup -EventName $hookEventName -FieldName "commandWindows"
+    Assert-SetupCommand -Command $codexHooksCommand -Description "Codex hooks $hookEventName setup" -IngestTarget "codex-hook"
+    $expectedCodexHooksCommand = "$Bin ingest codex-hook --hook $hookEventName"
+    if ($codexHooksCommand.StartsWith('"', [System.StringComparison]::Ordinal) -or
+        -not $codexHooksCommand.Equals($expectedCodexHooksCommand, [System.StringComparison]::OrdinalIgnoreCase)) {
+      throw "Codex hooks $hookEventName commandWindows must use the unquoted standalone executable path and matching --hook argument. Expected: $expectedCodexHooksCommand. Actual: $codexHooksCommand"
+    }
+  }
 
   $env:AGENTPULSE_HOST = "0.0.0.0"
   $unsafe = Invoke-AgentPulse -Arguments @("daemon", "--dashboard", "--notifier", "none") -AllowFailure
@@ -370,12 +400,20 @@ try {
     throw "Doctor did not pass against the standalone daemon."
   }
 
-  $hookPayload = '{"session_id":"windows-codex-hook","cwd":"C:\\demo","hook_event_name":"PermissionRequest","prompt":"must-not-leak","tool_input":{"command":"must-not-leak"}}'
-  $hook = Invoke-AgentPulse -Arguments @("ingest", "codex-hook") -Stdin $hookPayload
-  $hookStdout = [string](Convert-StreamToText -Value $hook.Stdout)
-  $hookStderr = [string](Convert-StreamToText -Value $hook.Stderr)
-  if ($hookStdout.Length -ne 0 -or $hookStderr.Length -ne 0) {
-    throw "Codex hook ingest should be silent on success."
+  $hookPayload = '{"session_id":"windows-codex-hook","cwd":"C:\\demo","hook_event_name":"PreToolUse","tool_name":"must-not-win","prompt":"must-not-leak","tool_input":{"command":"must-not-leak"},"tool_response":"must-not-leak","transcript_path":"C:\\must-not-leak"}'
+  $hook = Invoke-AgentPulse -Arguments @("ingest", "codex-hook", "--hook", "Stop") -Stdin $hookPayload
+  if ($hook.ExitCode -ne 0 -or
+      (Get-ByteCount -Value $hook.StdoutBytes) -ne 0 -or
+      (Get-ByteCount -Value $hook.StderrBytes) -ne 0) {
+    throw "Codex Stop hook ingest should have empty stdout and stderr."
+  }
+
+  $toolHookPayload = '{"session_id":"windows-codex-tool-hook","cwd":"C:\\demo","hook_event_name":"Stop","tool_name":"Bash","prompt":"must-not-leak","tool_input":{"command":"must-not-leak"}}'
+  $toolHook = Invoke-AgentPulse -Arguments @("ingest", "codex-hook", "--hook", "PreToolUse") -Stdin $toolHookPayload
+  if ($toolHook.ExitCode -ne 0 -or
+      (Get-ByteCount -Value $toolHook.StdoutBytes) -ne 0 -or
+      (Get-ByteCount -Value $toolHook.StderrBytes) -ne 0) {
+    throw "Codex PreToolUse hook ingest should have empty stdout and stderr."
   }
 
   Invoke-AgentPulse -Arguments @(
@@ -383,8 +421,15 @@ try {
     "--session-id", "windows-standalone-smoke", "--message", "done"
   ) | Out-Null
   $status = Invoke-AgentPulse -Arguments @("status", "--json")
-  if ($status.Stdout -notmatch "windows-codex-hook" -or
-      $status.Stdout -notmatch "windows-standalone-smoke" -or
+  $sessions = @($status.Stdout | ConvertFrom-Json)
+  $hookSessions = @($sessions | Where-Object { $_.sessionId -ceq "windows-codex-hook" })
+  $toolHookSessions = @($sessions | Where-Object { $_.sessionId -ceq "windows-codex-tool-hook" })
+  $manualSessions = @($sessions | Where-Object { $_.sessionId -ceq "windows-standalone-smoke" })
+  if ($hookSessions.Count -ne 1 -or
+      $hookSessions[0].status -cne "completed" -or
+      $toolHookSessions.Count -ne 1 -or
+      $toolHookSessions[0].status -cne "using_tool" -or
+      $manualSessions.Count -ne 1 -or
       $status.Stdout -match "must-not-leak") {
     throw "Status output is missing smoke sessions or leaked sensitive hook data."
   }

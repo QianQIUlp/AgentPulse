@@ -21,8 +21,11 @@ that hook.
 
 The Codex hooks adapter consumes documented lifecycle JSON from stdin and maps
 session, prompt, tool, permission-request, and stop events. It is
-observation-only: it emits no hook response fields and cannot approve, deny,
-rewrite, continue, stop, or add context to Codex behavior.
+observation-only: every ingest path exits zero with empty stdout and stderr,
+while recognized events are delivered to the daemon when available. It does
+not return hook response fields, warnings, debug text, prompts, tool
+input/output, transcripts, complete payloads, or other data that could change
+Codex behavior.
 
 The setup command prints a mergeable fragment only. Users must review and trust
 the exact command through Codex `/hooks`; AgentPulse does not bypass that trust
@@ -71,8 +74,12 @@ whitelisted `AgentEventInput`. They must not:
 - influence platform permission decisions;
 - claim lifecycle states the source interface does not expose.
 
-Ingest commands warn and return zero for invalid input, unsupported event
-types, or daemon delivery failure so platform lifecycle execution continues.
+Claude Code hook and Codex notify ingest commands warn and return zero for
+invalid input, unsupported event types, or daemon delivery failure. Codex hook
+ingest instead returns no stdout or stderr output and exits zero so platform
+lifecycle execution continues without hook-failure noise. Generated Codex hook
+commands pass the lifecycle event in `--hook`; stdin is optional payload and is
+not the sole event source.
 
 ## Prohibited foundations
 

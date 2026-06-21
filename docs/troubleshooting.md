@@ -204,13 +204,15 @@ session, while notify completion may still work.
 
 **Likely cause:** The hooks fragment was not merged, the project config layer is
 untrusted, the exact command is awaiting hook review, hooks are disabled, or
-the generated executable path moved.
+the generated executable path moved. On Windows, Codex CLI 0.141.0 also has a
+compatibility issue when the executable in `commandWindows` is wrapped in
+leading quotes.
 
 **Diagnostic command:**
 
 ```bash
-printf '%s' '{"session_id":"codex-hook-diagnostic","cwd":"/tmp","hook_event_name":"PermissionRequest"}' \
-  | agentpulse ingest codex-hook
+printf '%s' '{"session_id":"codex-hook-diagnostic","cwd":"/tmp"}' \
+  | agentpulse ingest codex-hook --hook PermissionRequest
 agentpulse status --json
 ```
 
@@ -219,8 +221,33 @@ replacing existing groups, then use Codex `/hooks` to inspect and trust the exac
 command. Do not bypass hook trust. If the binary moved, regenerate the snippet
 so its absolute path is current.
 
+For Windows Codex hooks, `commandWindows` is the critical execution field.
+Install `agentpulse.exe` into a simple no-space path without command-sensitive
+characters, for example:
+
+```text
+C:\Users\<you>\Tools\AgentPulse\agentpulse.exe
+```
+
+The generated `commandWindows` should resemble:
+
+```text
+C:\Users\<you>\Tools\AgentPulse\agentpulse.exe ingest codex-hook --hook Stop
+```
+
+It must not begin with a quote. If setup reports that the resolved command is
+unavailable, move or reinstall AgentPulse at a simple path and regenerate the
+fragment. AgentPulse does not copy the binary or edit user configuration.
+
+Every generated event command must contain its matching `--hook <EventName>`.
+AgentPulse treats stdin as optional payload data; the explicit argv event takes
+priority over `hook_event_name` in that payload. This allows lifecycle
+observation to continue when stdin is missing, malformed, or changes shape.
+
 **Fallback:** Keep the documented Codex notify integration for completion events
-while resolving hook setup.
+while resolving hook setup. Codex notify continues to use a TOML argv array and
+is not affected by this Windows hook-runner issue. Codex Desktop remains
+unverified.
 
 ## Setup snippet merge conflict
 

@@ -72,7 +72,8 @@ run_binary setup claude-code --print >"$WORK/claude-setup.txt" 2>"$WORK/claude-g
 run_binary setup codex --print >"$WORK/codex-setup.txt" 2>"$WORK/codex-guidance.txt"
 "$GREP" -qF "\"$BIN\", \"ingest\", \"codex\"" "$WORK/codex-setup.txt"
 run_binary setup codex-hooks --print >"$WORK/codex-hooks-setup.txt" 2>"$WORK/codex-hooks-guidance.txt"
-"$GREP" -qF "$BIN ingest codex-hook" "$WORK/codex-hooks-setup.txt"
+"$GREP" -qF "$BIN ingest codex-hook --hook Stop" "$WORK/codex-hooks-setup.txt"
+"$GREP" -qF "$BIN ingest codex-hook --hook PreToolUse" "$WORK/codex-hooks-setup.txt"
 "$GREP" -qF "reviewed and trusted" "$WORK/codex-hooks-guidance.txt"
 
 if "$ENV_COMMAND" -i \
@@ -117,15 +118,27 @@ run_binary doctor --json --notifier none >"$WORK/doctor.json"
 "$GREP" -qF '"ok": true' "$WORK/doctor.json"
 "$GREP" -qF '"status": "skipped"' "$WORK/doctor.json"
 
-printf '%s' '{"session_id":"standalone-codex-hook","cwd":"/tmp/demo","hook_event_name":"PermissionRequest","prompt":"must-not-leak","tool_input":{"command":"must-not-leak"}}' \
-  | run_binary ingest codex-hook >"$WORK/codex-hook.stdout" 2>"$WORK/codex-hook.stderr"
+printf '%s' '{"session_id":"standalone-codex-hook","cwd":"/tmp/demo","hook_event_name":"PreToolUse","tool_name":"must-not-win","prompt":"must-not-leak","tool_input":{"command":"must-not-leak"},"tool_response":"must-not-leak","transcript_path":"/tmp/must-not-leak"}' \
+  | run_binary ingest codex-hook --hook Stop >"$WORK/codex-hook.stdout" 2>"$WORK/codex-hook.stderr"
 test ! -s "$WORK/codex-hook.stdout"
 test ! -s "$WORK/codex-hook.stderr"
 run_binary status --json >"$WORK/codex-hook-status.json"
 "$GREP" -qF '"sessionId": "standalone-codex-hook"' "$WORK/codex-hook-status.json"
-"$GREP" -qF '"status": "waiting_permission"' "$WORK/codex-hook-status.json"
+"$GREP" -qF '"status": "completed"' "$WORK/codex-hook-status.json"
 if "$GREP" -qF "must-not-leak" "$WORK/codex-hook-status.json"; then
   echo "Codex hook sensitive fields leaked into status output" >&2
+  exit 1
+fi
+
+printf '%s' '{"session_id":"standalone-codex-tool-hook","cwd":"/tmp/demo","hook_event_name":"Stop","tool_name":"Bash","prompt":"must-not-leak","tool_input":{"command":"must-not-leak"}}' \
+  | run_binary ingest codex-hook --hook PreToolUse >"$WORK/codex-tool-hook.stdout" 2>"$WORK/codex-tool-hook.stderr"
+test ! -s "$WORK/codex-tool-hook.stdout"
+test ! -s "$WORK/codex-tool-hook.stderr"
+run_binary status --json >"$WORK/codex-tool-hook-status.json"
+"$GREP" -qF '"sessionId": "standalone-codex-tool-hook"' "$WORK/codex-tool-hook-status.json"
+"$GREP" -qF '"status": "using_tool"' "$WORK/codex-tool-hook-status.json"
+if "$GREP" -qF "must-not-leak" "$WORK/codex-tool-hook-status.json"; then
+  echo "Codex tool hook sensitive fields leaked into status output" >&2
   exit 1
 fi
 

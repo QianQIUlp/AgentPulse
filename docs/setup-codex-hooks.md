@@ -1,6 +1,8 @@
 # Set up Codex Hooks
 
-Codex lifecycle hooks send one JSON object to AgentPulse on stdin. This
+Codex lifecycle hooks invoke AgentPulse with the event name in
+`--hook <EventName>` and may send one JSON payload on stdin. AgentPulse follows
+this hook best practice so event identity does not depend on stdin parsing. The
 integration observes documented lifecycle events without changing Codex
 permission or turn behavior.
 
@@ -18,7 +20,28 @@ By default the generated commands use the current standalone executable's
 absolute path. Source mode uses the absolute Node executable followed by the
 absolute CLI entry path. Use `--binary agentpulse` only when the Codex hook
 environment has a reliable `PATH`; other `--binary` values must be absolute.
-Windows output uses quoted Windows command lines and includes `commandWindows`.
+
+On Windows, `commandWindows` is the field Codex uses to execute the hook.
+Codex CLI 0.141.0 has a compatibility issue when that command begins with a
+quoted executable path. AgentPulse therefore emits an unquoted
+`commandWindows` only when every resolved executable path token is a simple
+path containing letters, numbers, `:`, `\`, `/`, `.`, `_`, or `-`.
+
+Install the standalone executable in a simple no-space path such as:
+
+```text
+C:\Users\<you>\Tools\AgentPulse\agentpulse.exe
+```
+
+The generated command is:
+
+```text
+C:\Users\<you>\Tools\AgentPulse\agentpulse.exe ingest codex-hook --hook Stop
+```
+
+If the path contains whitespace or command-sensitive characters, setup fails
+closed with a diagnostic instead of printing a known-broken hooks fragment. It
+does not copy the executable or modify Codex configuration.
 
 ## Merge and trust manually
 
@@ -47,15 +70,27 @@ AgentPulse does not bypass or weaken this review flow.
 | `PostToolUse`       | `running`            |
 | `Stop`              | `completed`          |
 
-The command reads only the session ID, working directory, event name, and a
-bounded tool name where useful. It does not read or retain prompts,
+Each generated hook command passes its event name explicitly, for example
+`--hook Stop`. This argv value takes precedence over `hook_event_name` in stdin.
+When `--hook` is absent for backward compatibility, AgentPulse falls back to the
+stdin event name. Missing, malformed, or changed stdin does not block a valid
+explicit hook event.
+
+The stdin payload is used only for the session ID, working directory, and a
+bounded tool name where useful. AgentPulse does not read or retain prompts,
 `transcript_path`, tool input, tool response/output, assistant messages, or the
 complete payload.
 
-Successful ingest writes nothing to stdout or stderr. Invalid JSON, unsupported
-events, and daemon delivery failures warn on stderr and exit zero so the Codex
-flow continues. AgentPulse never returns hook decisions, additional context,
-system messages, permission decisions, updated input, or turn-control fields.
+AgentPulse treats Codex hooks as fire-and-forget observations. Every path exits
+zero and writes nothing to stdout or stderr by default, including successful
+events, invalid JSON, unsupported events, stdin failures, and daemon delivery
+failures. Recognized events are still delivered to the daemon when it is
+available.
+
+AgentPulse does not return hook response fields, warnings, debug text, prompts,
+tool input/output, transcripts, or complete payloads. This keeps the integration
+observation-only and prevents AgentPulse from blocking or modifying Codex
+behavior.
 
 ## Verify
 
@@ -68,10 +103,15 @@ agentpulse daemon --notifier console
 Synthetic check:
 
 ```bash
-printf '%s' '{"session_id":"codex-hook-demo","cwd":"/tmp/demo","hook_event_name":"PermissionRequest"}' \
-  | agentpulse ingest codex-hook
+printf '%s' '{"session_id":"codex-hook-demo","cwd":"/tmp/demo"}' \
+  | agentpulse ingest codex-hook --hook PermissionRequest
 agentpulse status --json
 ```
 
 Then use `/hooks` to review the real handlers and run a Codex turn that invokes
-a tool. See the official [Codex hooks reference](https://developers.openai.com/codex/hooks).
+a tool. On Windows, confirm that the displayed `commandWindows` does not begin
+with a quote. See the official
+[Codex hooks reference](https://developers.openai.com/codex/hooks).
+
+Codex Desktop remains unverified. The documented Codex notify integration is a
+stable fallback when completed-only notifications are sufficient.

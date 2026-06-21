@@ -2,6 +2,8 @@ import { ingestClaudeHookJson } from "@agentpulse/adapter-claude-code";
 import {
   ingestCodexHookJson,
   ingestCodexNotifyJson,
+  isCodexHookEventName,
+  type CodexHookEventName,
 } from "@agentpulse/adapter-codex";
 
 import type { AgentPulseClient } from "../daemon-client.js";
@@ -59,6 +61,57 @@ async function deliver(
   return 0;
 }
 
+async function ingestCodexHook(
+  platformArgs: readonly string[],
+  client: AgentPulseClient,
+  readStdin: StdinReader,
+): Promise<number> {
+  const hookArg = platformArgs[1];
+  const hookSelection:
+    | { kind: "stdin" }
+    | { kind: "override"; hook: CodexHookEventName }
+    | { kind: "ignore" } =
+    platformArgs.length === 0
+      ? { kind: "stdin" }
+      : platformArgs.length === 2 &&
+          platformArgs[0] === "--hook" &&
+          hookArg !== undefined &&
+          isCodexHookEventName(hookArg)
+        ? { kind: "override", hook: hookArg }
+        : { kind: "ignore" };
+
+  if (hookSelection.kind === "ignore") {
+    return 0;
+  }
+
+  let json = "";
+  try {
+    json = await readStdin();
+  } catch {
+    if (hookSelection.kind === "stdin") {
+      return 0;
+    }
+  }
+
+  try {
+    const result = ingestCodexHookJson(
+      json,
+      hookSelection.kind === "override" ? hookSelection.hook : undefined,
+    );
+    if (result.kind === "event") {
+      try {
+        await client.emit(result.event);
+      } catch {
+        // Codex hooks must remain non-blocking when the daemon is unavailable.
+      }
+    }
+  } catch {
+    // Invalid hook input must not interrupt Codex.
+  }
+
+  return 0;
+}
+
 async function ingest(
   args: readonly string[],
   client: AgentPulseClient,
@@ -93,15 +146,7 @@ async function ingest(
   }
 
   if (platform === "codex-hook") {
-    if (platformArgs.length > 0) {
-      warn(
-        io,
-        "Codex hook ingest accepts JSON on stdin only. No event was recorded. Regenerate the hook with `agentpulse setup codex-hooks --print`.",
-      );
-      return 0;
-    }
-
-    return deliver(await readStdin(), ingestCodexHookJson, client, io);
+    return ingestCodexHook(platformArgs, client, readStdin);
   }
 
   warn(
