@@ -166,6 +166,83 @@ describe("platform ingest commands", () => {
     expectSilentCodexHook(capture);
   });
 
+  it("uses --hook before stdin hook_event_name", async () => {
+    const capture = captureIo();
+    const target = captureClient();
+
+    const code = await executeIngestCommand(
+      ["codex-hook", "--hook", "Stop"],
+      target.client,
+      capture.io,
+      async () =>
+        JSON.stringify({
+          session_id: "codex-override",
+          cwd: "/tmp/demo",
+          hook_event_name: "PreToolUse",
+          tool_name: "Bash",
+          prompt: "secret prompt",
+          tool_input: { command: "secret command" },
+        }),
+    );
+
+    expect(code).toBe(0);
+    expect(target.events).toEqual([
+      {
+        source: "codex",
+        surface: "cli",
+        status: "completed",
+        title: "Stop",
+        sessionId: "codex-override",
+        projectPath: "/tmp/demo",
+      },
+    ]);
+    expect(JSON.stringify(target.events)).not.toContain("secret");
+    expectSilentCodexHook(capture);
+  });
+
+  it.each([
+    ["empty stdin", async () => ""],
+    ["invalid JSON", async () => "{"],
+    [
+      "missing hook_event_name",
+      async () => JSON.stringify({ session_id: "payload-session" }),
+    ],
+    [
+      "unreadable stdin",
+      async () => {
+        throw new Error("private stdin detail");
+      },
+    ],
+  ] as const)(
+    "uses a valid --hook with %s",
+    async (_description, readHookStdin) => {
+      const capture = captureIo();
+      const target = captureClient();
+
+      const code = await executeIngestCommand(
+        ["codex-hook", "--hook", "Stop"],
+        target.client,
+        capture.io,
+        readHookStdin,
+      );
+
+      expect(code).toBe(0);
+      expect(target.events).toEqual([
+        {
+          source: "codex",
+          surface: "cli",
+          status: "completed",
+          title: "Stop",
+          ...(_description === "missing hook_event_name"
+            ? { sessionId: "payload-session" }
+            : {}),
+        },
+      ]);
+      expect(JSON.stringify(capture)).not.toContain("private");
+      expectSilentCodexHook(capture);
+    },
+  );
+
   it.each([
     ["SessionStart", "running", undefined],
     ["UserPromptSubmit", "running", undefined],
@@ -343,13 +420,13 @@ describe("platform ingest commands", () => {
       };
 
       const code = await executeIngestCommand(
-        ["codex-hook"],
+        ["codex-hook", "--hook", hookEventName],
         client,
         capture.io,
         async () =>
           JSON.stringify({
             session_id: "offline-hook",
-            hook_event_name: hookEventName,
+            hook_event_name: hookEventName === "Stop" ? "PreToolUse" : "Stop",
             tool_name: "Bash",
             prompt: "private prompt",
             tool_input: { command: "private command" },
@@ -398,6 +475,33 @@ describe("platform ingest commands", () => {
     expect(target.events).toEqual([]);
     expectSilentCodexHook(capture);
   });
+
+  it.each([
+    ["--hook"],
+    ["--hook", "PreCompact"],
+    ["--hook", "Stop", "--hook", "PreToolUse"],
+    ["--hook", "Stop", "extra"],
+    ["unexpected"],
+  ])(
+    "silently ignores malformed or unsupported Codex hook arguments: %j",
+    async (...platformArgs) => {
+      const capture = captureIo();
+      const target = captureClient();
+
+      const code = await executeIngestCommand(
+        ["codex-hook", ...platformArgs],
+        target.client,
+        capture.io,
+        async () => {
+          throw new Error("stdin must not be read");
+        },
+      );
+
+      expect(code).toBe(0);
+      expect(target.events).toEqual([]);
+      expectSilentCodexHook(capture);
+    },
+  );
 });
 
 describe("setup snippet commands", () => {
@@ -501,10 +605,10 @@ describe("setup snippet commands", () => {
     const handler = parsed.hooks.Stop[0]?.hooks[0];
 
     expect(handler?.command).toBe(
-      '"C:\\Tools\\nodejs\\node.exe" "C:\\AgentPulse\\packages\\cli\\dist\\index.js" "ingest" "codex-hook"',
+      '"C:\\Tools\\nodejs\\node.exe" "C:\\AgentPulse\\packages\\cli\\dist\\index.js" "ingest" "codex-hook" "--hook" "Stop"',
     );
     expect(handler?.commandWindows).toBe(
-      "C:\\Tools\\nodejs\\node.exe C:\\AgentPulse\\packages\\cli\\dist\\index.js ingest codex-hook",
+      "C:\\Tools\\nodejs\\node.exe C:\\AgentPulse\\packages\\cli\\dist\\index.js ingest codex-hook --hook Stop",
     );
     expect(handler?.commandWindows).not.toMatch(/^"/u);
     expect(snippets.codex).toContain('"C:\\\\Tools\\\\nodejs\\\\node.exe"');
@@ -530,8 +634,68 @@ describe("setup snippet commands", () => {
     };
 
     expect(parsed.hooks.Stop[0]?.hooks[0]?.commandWindows).toBe(
-      "C:\\Users\\demo\\Tools\\AgentPulse\\agentpulse.exe ingest codex-hook",
+      "C:\\Users\\demo\\Tools\\AgentPulse\\agentpulse.exe ingest codex-hook --hook Stop",
     );
+  });
+
+  it("generates a matching --hook command for every Codex event", () => {
+    const snippets = createSetupSnippets(
+      undefined,
+      setupRuntime({
+        isSea: () => true,
+        execPath: "C:\\Users\\demo\\Tools\\AgentPulse\\agentpulse.exe",
+        entryPath: undefined,
+        platform: "win32",
+      }),
+    );
+    expect(snippets.codexHooks.available).toBe(true);
+    const parsed = JSON.parse(
+      snippets.codexHooks.available ? snippets.codexHooks.snippet : "",
+    ) as {
+      hooks: Record<
+        string,
+        { hooks: { command: string; commandWindows?: string }[] }[]
+      >;
+    };
+
+    for (const hookEventName of [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PermissionRequest",
+      "PostToolUse",
+      "Stop",
+    ]) {
+      const handler = parsed.hooks[hookEventName]?.[0]?.hooks[0];
+      expect(handler?.command).toContain(`"--hook" "${hookEventName}"`);
+      expect(handler?.commandWindows).toBe(
+        `C:\\Users\\demo\\Tools\\AgentPulse\\agentpulse.exe ingest codex-hook --hook ${hookEventName}`,
+      );
+      expect(handler?.commandWindows).not.toMatch(/^"/u);
+    }
+  });
+
+  it("generates matching POSIX --hook commands for every Codex event", () => {
+    const snippets = createSetupSnippets(undefined, setupRuntime());
+    expect(snippets.codexHooks.available).toBe(true);
+    const parsed = JSON.parse(
+      snippets.codexHooks.available ? snippets.codexHooks.snippet : "",
+    ) as {
+      hooks: Record<string, { hooks: { command: string }[] }[]>;
+    };
+
+    for (const hookEventName of [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PermissionRequest",
+      "PostToolUse",
+      "Stop",
+    ]) {
+      expect(parsed.hooks[hookEventName]?.[0]?.hooks[0]?.command).toBe(
+        `/usr/local/bin/node /workspace/AgentPulse/packages/cli/dist/index.js ingest codex-hook --hook ${hookEventName}`,
+      );
+    }
   });
 
   it.each([" ", "\t", "&", "(", ")", "^", "%", "!", "'", '"', "<", ">", "|"])(

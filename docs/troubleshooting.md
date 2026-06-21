@@ -211,8 +211,8 @@ leading quotes.
 **Diagnostic command:**
 
 ```bash
-printf '%s' '{"session_id":"codex-hook-diagnostic","cwd":"/tmp","hook_event_name":"PermissionRequest"}' \
-  | agentpulse ingest codex-hook
+printf '%s' '{"session_id":"codex-hook-diagnostic","cwd":"/tmp"}' \
+  | agentpulse ingest codex-hook --hook PermissionRequest
 agentpulse status --json
 ```
 
@@ -232,12 +232,17 @@ C:\Users\<you>\Tools\AgentPulse\agentpulse.exe
 The generated `commandWindows` should resemble:
 
 ```text
-C:\Users\<you>\Tools\AgentPulse\agentpulse.exe ingest codex-hook
+C:\Users\<you>\Tools\AgentPulse\agentpulse.exe ingest codex-hook --hook Stop
 ```
 
 It must not begin with a quote. If setup reports that the resolved command is
 unavailable, move or reinstall AgentPulse at a simple path and regenerate the
 fragment. AgentPulse does not copy the binary or edit user configuration.
+
+Every generated event command must contain its matching `--hook <EventName>`.
+AgentPulse treats stdin as optional payload data; the explicit argv event takes
+priority over `hook_event_name` in that payload. This allows lifecycle
+observation to continue when stdin is missing, malformed, or changes shape.
 
 **Fallback:** Keep the documented Codex notify integration for completion events
 while resolving hook setup. Codex notify continues to use a TOML argv array and

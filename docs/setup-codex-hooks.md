@@ -1,6 +1,8 @@
 # Set up Codex Hooks
 
-Codex lifecycle hooks send one JSON object to AgentPulse on stdin. This
+Codex lifecycle hooks invoke AgentPulse with the event name in
+`--hook <EventName>` and may send one JSON payload on stdin. AgentPulse follows
+this hook best practice so event identity does not depend on stdin parsing. The
 integration observes documented lifecycle events without changing Codex
 permission or turn behavior.
 
@@ -34,7 +36,7 @@ C:\Users\<you>\Tools\AgentPulse\agentpulse.exe
 The generated command is:
 
 ```text
-C:\Users\<you>\Tools\AgentPulse\agentpulse.exe ingest codex-hook
+C:\Users\<you>\Tools\AgentPulse\agentpulse.exe ingest codex-hook --hook Stop
 ```
 
 If the path contains whitespace or command-sensitive characters, setup fails
@@ -68,8 +70,14 @@ AgentPulse does not bypass or weaken this review flow.
 | `PostToolUse`       | `running`            |
 | `Stop`              | `completed`          |
 
-The command reads only the session ID, working directory, event name, and a
-bounded tool name where useful. It does not read or retain prompts,
+Each generated hook command passes its event name explicitly, for example
+`--hook Stop`. This argv value takes precedence over `hook_event_name` in stdin.
+When `--hook` is absent for backward compatibility, AgentPulse falls back to the
+stdin event name. Missing, malformed, or changed stdin does not block a valid
+explicit hook event.
+
+The stdin payload is used only for the session ID, working directory, and a
+bounded tool name where useful. AgentPulse does not read or retain prompts,
 `transcript_path`, tool input, tool response/output, assistant messages, or the
 complete payload.
 
@@ -95,8 +103,8 @@ agentpulse daemon --notifier console
 Synthetic check:
 
 ```bash
-printf '%s' '{"session_id":"codex-hook-demo","cwd":"/tmp/demo","hook_event_name":"PermissionRequest"}' \
-  | agentpulse ingest codex-hook
+printf '%s' '{"session_id":"codex-hook-demo","cwd":"/tmp/demo"}' \
+  | agentpulse ingest codex-hook --hook PermissionRequest
 agentpulse status --json
 ```
 

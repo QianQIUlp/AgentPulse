@@ -3,6 +3,11 @@ import { posix, resolve, win32 } from "node:path";
 import { isSea } from "node:sea";
 import { parseArgs } from "node:util";
 
+import {
+  CODEX_HOOK_EVENT_NAMES,
+  type CodexHookEventName,
+} from "@agentpulse/adapter-codex";
+
 import type { CommandIo } from "./types.js";
 
 type SetupPlatform = "claude-code" | "codex" | "codex-hooks";
@@ -206,37 +211,33 @@ function createCodexHooksSnippet(
   command: readonly string[],
   platform: RuntimePlatform,
 ): CodexHooksSetupResult {
-  const commandWindows =
-    platform === "win32"
-      ? command.every((token) => WINDOWS_CODEX_HOOK_SIMPLE_TOKEN.test(token))
-        ? [...command, "ingest", "codex-hook"].join(" ")
-        : undefined
-      : undefined;
-  if (platform === "win32" && commandWindows === undefined) {
+  const windowsCommandAvailable =
+    platform !== "win32" ||
+    command.every((token) => WINDOWS_CODEX_HOOK_SIMPLE_TOKEN.test(token));
+  if (!windowsCommandAvailable) {
     return {
       available: false,
       reason: WINDOWS_CODEX_HOOKS_UNAVAILABLE,
     };
   }
 
-  const rendered = renderHookCommand(
-    [...command, "ingest", "codex-hook"],
-    platform,
-  );
-  const group = () => hookGroup(rendered, undefined, commandWindows);
+  const group = (hookEventName: CodexHookEventName) => {
+    const argv = [...command, "ingest", "codex-hook", "--hook", hookEventName];
+    const rendered = renderHookCommand(argv, platform);
+    const commandWindows = platform === "win32" ? argv.join(" ") : undefined;
+    return hookGroup(rendered, undefined, commandWindows);
+  };
 
   return {
     available: true,
     snippet: JSON.stringify(
       {
-        hooks: {
-          SessionStart: group(),
-          UserPromptSubmit: group(),
-          PreToolUse: group(),
-          PermissionRequest: group(),
-          PostToolUse: group(),
-          Stop: group(),
-        },
+        hooks: Object.fromEntries(
+          CODEX_HOOK_EVENT_NAMES.map((hookEventName) => [
+            hookEventName,
+            group(hookEventName),
+          ]),
+        ),
       },
       null,
       2,
@@ -281,6 +282,7 @@ const CODEX_HOOKS_SETUP_GUIDANCE = `AgentPulse only printed a mergeable hooks.js
 Merge it manually into ~/.codex/hooks.json or a trusted project .codex/hooks.json while preserving existing hook groups.
 Codex requires non-managed command hooks to be reviewed and trusted. Open \`/hooks\`, inspect the exact AgentPulse commands, and trust them only if they match your installation.
 AgentPulse observes hook events only. It does not return permission decisions, context, or turn-control output, and it does not bypass Codex hook trust.
+Each generated command passes its matching lifecycle event through \`--hook <EventName>\`; stdin is treated as optional payload data.
 On Windows, Codex hooks execute the \`commandWindows\` field. Codex CLI 0.141.0 requires AgentPulse to be installed at a simple no-space path so this field can use an unquoted executable command.
 Use \`--binary agentpulse\` only when Codex can reliably resolve AgentPulse from PATH.`;
 

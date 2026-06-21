@@ -16,7 +16,7 @@ Usage:
   agentpulse emit --source SOURCE --surface SURFACE --status STATUS [options]
   agentpulse ingest claude-code
   agentpulse ingest codex [json]
-  agentpulse ingest codex-hook
+  agentpulse ingest codex-hook [--hook EVENT]
   agentpulse setup claude-code --print [--binary PATH]
   agentpulse setup codex --print [--binary PATH]
   agentpulse setup codex-hooks --print [--binary PATH]

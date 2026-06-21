@@ -43,6 +43,10 @@ describe("Codex hook adapter", () => {
       kind: "ignored",
       reason: "Unsupported Codex hook event",
     });
+    expect(mapCodexHook({ session_id: "missing-event" })).toEqual({
+      kind: "ignored",
+      reason: "Unsupported Codex hook event",
+    });
   });
 
   it("rejects malformed JSON and payloads", () => {
@@ -50,11 +54,48 @@ describe("Codex hook adapter", () => {
       kind: "invalid",
       reason: "Invalid Codex hook JSON",
     });
-    expect(mapCodexHook({ session_id: "missing-event" })).toEqual({
+    expect(mapCodexHook("not-an-object")).toEqual({
       kind: "invalid",
       reason: "Invalid Codex hook payload",
     });
   });
+
+  it("uses an explicit hook event over the stdin payload event", () => {
+    expect(
+      ingestCodexHookJson(
+        JSON.stringify({
+          session_id: "override-session",
+          hook_event_name: "PreToolUse",
+          tool_name: "Bash",
+        }),
+        "Stop",
+      ),
+    ).toEqual({
+      kind: "event",
+      event: {
+        source: "codex",
+        surface: "cli",
+        status: "completed",
+        title: "Stop",
+        sessionId: "override-session",
+      },
+    });
+  });
+
+  it.each(["", "{", JSON.stringify({ session_id: 42 })])(
+    "creates a best-effort event from an explicit hook when stdin is unusable",
+    (json) => {
+      expect(ingestCodexHookJson(json, "Stop")).toEqual({
+        kind: "event",
+        event: {
+          source: "codex",
+          surface: "cli",
+          status: "completed",
+          title: "Stop",
+        },
+      });
+    },
+  );
 
   it("strips sensitive and unknown fields from normalized events", () => {
     const result = mapCodexHook({
