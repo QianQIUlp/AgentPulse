@@ -1,0 +1,378 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  background: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  padding: 6px;
+  color: #eef4fb;
+}
+
+button {
+  border: 1px solid rgba(203, 220, 238, 0.18);
+  border-radius: 8px;
+  color: #dce8f5;
+  background: rgba(255, 255, 255, 0.06);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+button:focus-visible {
+  outline: 2px solid #73d9b4;
+  outline-offset: 1px;
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag,
+button {
+  -webkit-app-region: no-drag;
+}
+
+.surface {
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(183, 205, 229, 0.16);
+  border-radius: 18px;
+  background:
+    radial-gradient(
+      circle at 12% 20%,
+      rgba(79, 143, 196, 0.2),
+      transparent 34%
+    ),
+    linear-gradient(145deg, rgba(22, 31, 43, 0.97), rgba(10, 15, 22, 0.98));
+  box-shadow:
+    0 14px 38px rgba(0, 0, 0, 0.38),
+    inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.compact-header {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 70px;
+  padding: 10px 10px 4px 14px;
+}
+
+.status-orb {
+  width: 20px;
+  height: 20px;
+  border: 4px solid rgba(188, 210, 230, 0.42);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(188, 210, 230, 0.05);
+}
+
+.summary-copy {
+  min-width: 0;
+}
+
+.eyebrow,
+.summary-copy h1,
+.summary-copy > p,
+.counts p,
+.global-diagnostic,
+.session-row p {
+  margin: 0;
+}
+
+.eyebrow {
+  color: #8398ad;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.summary-copy h1 {
+  overflow: hidden;
+  margin-top: 1px;
+  font-size: 17px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#primary-session {
+  overflow: hidden;
+  margin-top: 3px;
+  color: #9fb0c1;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window-controls {
+  display: flex;
+  align-self: start;
+  gap: 5px;
+}
+
+.window-controls button {
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.counts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0 12px 8px;
+  border-top: 1px solid rgba(190, 210, 232, 0.1);
+}
+
+.counts p {
+  padding-top: 7px;
+  color: #8194a8;
+  font-size: 10px;
+  text-align: center;
+}
+
+.counts strong {
+  margin-right: 3px;
+  color: #edf5fc;
+  font-size: 12px;
+}
+
+.expanded-only {
+  display: none;
+}
+
+body.expanded .expanded-only {
+  display: block;
+}
+
+body.expanded .surface {
+  display: flex;
+  flex-direction: column;
+}
+
+.expanded-panel {
+  min-height: 0;
+  padding: 0 12px 12px;
+}
+
+.global-diagnostic {
+  margin: 0 0 8px;
+  padding: 7px 9px;
+  border: 1px solid rgba(240, 184, 95, 0.25);
+  border-radius: 9px;
+  color: #efc886;
+  background: rgba(240, 184, 95, 0.08);
+  font-size: 11px;
+}
+
+.expanded-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #9aabba;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.expanded-toolbar div {
+  display: flex;
+  gap: 5px;
+}
+
+.expanded-toolbar button {
+  padding: 5px 7px;
+  color: #aebdcb;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.session-list {
+  display: grid;
+  gap: 7px;
+  max-height: 326px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.session-row {
+  padding: 9px 10px;
+  border: 1px solid rgba(189, 211, 232, 0.12);
+  border-left: 3px solid #5c7083;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.session-row-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.session-status {
+  color: #91a4b6;
+  font-size: 10px;
+}
+
+.session-title {
+  overflow: hidden;
+  margin-top: 4px !important;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-meta,
+.session-diagnostic {
+  margin-top: 4px !important;
+  color: #8496a8;
+  font-size: 10px;
+}
+
+.session-diagnostic {
+  color: #efc886;
+}
+
+.tone-action {
+  border-left-color: #f2bd62;
+}
+
+.tone-error {
+  border-left-color: #f16f78;
+}
+
+.tone-stale {
+  border-left-color: #d39561;
+}
+
+.tone-active {
+  border-left-color: #68b6ec;
+}
+
+.tone-done {
+  border-left-color: #65d6ad;
+}
+
+.empty-sessions {
+  margin: 30px 0;
+  color: #7f92a4;
+  font-size: 12px;
+  text-align: center;
+}
+
+body[data-state="running"] .status-orb {
+  border-color: #68b6ec;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+body[data-state="needs-you"] .status-orb {
+  border-color: #f2bd62;
+  animation: alert-pulse 0.9s ease-in-out infinite;
+}
+
+body[data-state="failed"] .status-orb {
+  border-color: #f16f78;
+}
+
+body[data-state="failed"] .surface {
+  animation: error-edge 0.55s ease-out 1;
+}
+
+body[data-state="stale"] .status-orb {
+  border-color: #d39561;
+}
+
+body[data-state="completed"] .status-orb {
+  border-color: #65d6ad;
+  animation: completed-pop 0.6s ease-out 1;
+}
+
+body[data-state="quiet"] .status-orb {
+  border-color: #76b79f;
+  animation: breathe 3s ease-in-out infinite;
+}
+
+body[data-state="offline"] .surface,
+body[data-state="api-unavailable"] .surface {
+  opacity: 0.82;
+  filter: saturate(0.55);
+}
+
+@keyframes pulse {
+  50% {
+    box-shadow: 0 0 0 7px rgba(104, 182, 236, 0.12);
+  }
+}
+
+@keyframes alert-pulse {
+  50% {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 8px rgba(242, 189, 98, 0.16);
+  }
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.7;
+    transform: scale(0.94);
+  }
+}
+
+@keyframes completed-pop {
+  45% {
+    transform: scale(1.25);
+  }
+}
+
+@keyframes error-edge {
+  20%,
+  60% {
+    transform: translateX(-2px);
+    box-shadow: 0 0 0 1px rgba(241, 111, 120, 0.5);
+  }
+  40%,
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

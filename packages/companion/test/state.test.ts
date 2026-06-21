@@ -1,0 +1,173 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  deriveCompanionViewModel,
+  getSessionPriority,
+  RECENT_COMPLETION_MS,
+  sortSessions,
+} from "../src/state.js";
+import type { CompanionStatus, SanitizedSession } from "../src/sanitize.js";
+
+function session(
+  status: CompanionStatus,
+  overrides: Partial<SanitizedSession> = {},
+): SanitizedSession {
+  return {
+    sessionKey: `custom:manual:${status}`,
+    source: "custom",
+    surface: "manual",
+    status,
+    lastEventAt: 1_000,
+    lastEventAgeMs: 1_000,
+    isStale: false,
+    displayName: "Custom",
+    displayWorkspace: "AgentPulse",
+    attention: "passive",
+    ...overrides,
+  };
+}
+
+function online(sessions: SanitizedSession[]) {
+  return { kind: "online" as const, data: { sessions } };
+}
+
+describe("companion state derivation", () => {
+  it("ranks session attention states in the specified order", () => {
+    const sessions = [
+      session("unknown"),
+      session("idle"),
+      session("completed", { lastEventAgeMs: RECENT_COMPLETION_MS }),
+      session("running"),
+      session("running", { isStale: true }),
+      session("failed"),
+      session("waiting_input"),
+      session("waiting_permission"),
+    ];
+
+    expect(sortSessions(sessions).map((item) => item.status)).toEqual([
+      "waiting_permission",
+      "waiting_input",
+      "failed",
+      "running",
+      "running",
+      "completed",
+      "idle",
+      "unknown",
+    ]);
+    expect(sessions.map(getSessionPriority)).toEqual([7, 6, 5, 4, 3, 2, 1, 0]);
+  });
+
+  it("breaks equal-priority ties by newest event", () => {
+    const older = session("running", {
+      sessionKey: "older",
+      lastEventAt: 1_000,
+    });
+    const newer = session("using_tool", {
+      sessionKey: "newer",
+      lastEventAt: 2_000,
+    });
+
+    expect(sortSessions([older, newer]).map((item) => item.sessionKey)).toEqual(
+      ["newer", "older"],
+    );
+  });
+
+  it("counts running, action, and failed sessions", () => {
+    const view = deriveCompanionViewModel(
+      online([
+        session("running"),
+        session("using_tool"),
+        session("waiting_permission"),
+        session("waiting_input"),
+        session("failed"),
+        session("rate_limited"),
+      ]),
+      10_000,
+    );
+
+    expect(view.counts).toEqual({ running: 2, action: 2, failed: 2 });
+    expect(view.state).toBe("needs-you");
+    expect(view.summary).toBe("Needs you");
+  });
+
+  it("treats five minutes as the inclusive recent-completion boundary", () => {
+    expect(
+      deriveCompanionViewModel(
+        online([
+          session("completed", { lastEventAgeMs: RECENT_COMPLETION_MS }),
+        ]),
+      ).state,
+    ).toBe("completed");
+    expect(
+      deriveCompanionViewModel(
+        online([
+          session("completed", {
+            lastEventAgeMs: RECENT_COMPLETION_MS + 1,
+          }),
+        ]),
+      ).state,
+    ).toBe("quiet");
+  });
+
+  it("raises stale running sessions above ordinary running work", () => {
+    const view = deriveCompanionViewModel(
+      online([
+        session("running", {
+          displayName: "Fresh",
+          lastEventAt: 2_000,
+        }),
+        session("using_tool", {
+          displayName: "Stale",
+          isStale: true,
+          staleReason: "No event for at least 5 minutes.",
+          lastEventAt: 1_000,
+        }),
+      ]),
+    );
+
+    expect(view.state).toBe("stale");
+    expect(view.mostImportant?.source).toBe("Stale");
+    expect(view.diagnostic).toBe("No event for at least 5 minutes.");
+  });
+
+  it("identifies the highest-priority failure by agent", () => {
+    const view = deriveCompanionViewModel(
+      online([
+        session("failed", {
+          displayName: "Codex",
+          lastEventAt: 2_000,
+        }),
+        session("rate_limited", {
+          displayName: "Claude Code",
+          lastEventAt: 1_000,
+        }),
+      ]),
+    );
+
+    expect(view.state).toBe("failed");
+    expect(view.summary).toBe("Codex failed");
+  });
+
+  it("separates daemon and API failure states", () => {
+    expect(
+      deriveCompanionViewModel({
+        kind: "offline",
+        diagnostic: "network",
+      }),
+    ).toMatchObject({
+      state: "offline",
+      summary: "Daemon offline",
+      diagnostic: "network",
+    });
+    expect(
+      deriveCompanionViewModel({
+        kind: "api-unavailable",
+        diagnostic: "Start the daemon with --dashboard.",
+      }),
+    ).toMatchObject({
+      state: "api-unavailable",
+      summary: "Companion API unavailable",
+      diagnostic: "Start the daemon with --dashboard.",
+    });
+  });
+});

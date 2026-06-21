@@ -92,15 +92,20 @@ Duration is derived as follows:
 - end at `lastEventAt` for idle, unknown, and rate-limited states;
 - clamp the result to zero.
 
-## Future Floating Mode
+## Multi-Agent Companion Surface
 
-A future floating surface may reuse Compact Overview Mode's information
-hierarchy and the same attention contract in a small always-available window.
+The experimental Electron companion reuses Compact Overview Mode's attention
+contract in a small always-available window. It polls the same dashboard API
+without requiring the browser dashboard to be open.
 
-Desktop windows, tray integration, lifecycle management, installers, and
-platform-specific notification behavior are deliberately deferred to a later
-experimental PR. This PR does not add Electron, Tauri, a background desktop
-service, or any other desktop shell.
+The companion is multi-agent-first: its compact mode emphasizes the global
+summary, running/action/failure counts, and highest-priority session. Expanded
+mode provides dense current-session rows. It does not reproduce the full
+dashboard, approve permissions, add persistence, or manage agent processes.
+
+The prototype includes a best-effort tray menu and desktop-window lifecycle.
+Installers, autostart, release packaging, and platform-specific notification
+behavior remain deferred.
 
 ## Privacy and Security Boundaries
 
